@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Playlist Creator</title>
-	<link rel="stylesheet" href="/styles.css?v=similar-artist-selection-1">
+	<link rel="stylesheet" href="/styles.css?v=discover-new-music-1">
 </head>
 <body>
 	<main class="app-shell">
@@ -66,6 +66,14 @@
 					<span class="navigation-card-title">Artisti simili</span>
 					<span class="navigation-card-description">
 						Crea una playlist con i brani più ascoltati degli artisti maggiormente affini a un artista scelto.
+					</span>
+				</button>
+
+				<button id="openDiscoverView" type="button" class="navigation-card">
+					<span class="eyebrow">Spotify + Last.fm</span>
+					<span class="navigation-card-title">Scopri nuova musica</span>
+					<span class="navigation-card-description">
+						Crea una playlist con brani nuovi ispirati agli artisti che hai ascoltato di piu negli ultimi mesi.
 					</span>
 				</button>
 			</div>
@@ -449,6 +457,78 @@
 				</section>
 			</section>
 		</section>
+
+		<section id="discoverView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">Spotify + Last.fm</p>
+						<h2>Scopri nuova musica</h2>
+					</div>
+					<button id="discoverHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<section id="discoverMessage" class="message hidden"></section>
+
+				<section id="discoverTopArtistsResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Ultimi 6 mesi</p>
+							<h2>I tuoi artisti piu ascoltati</h2>
+						</div>
+						<strong id="discoverTopArtistsCount" class="result-count">0 artisti</strong>
+					</div>
+					<div id="discoverTopArtistsList" class="discovery-artist-selection-list"></div>
+					<div class="results-footer">
+						<button id="discoverSimilarButton" type="button" class="primary-button">Cerca simili</button>
+					</div>
+				</section>
+
+				<section id="discoverSimilarResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Suggerimenti Last.fm</p>
+							<h2>Artisti simili</h2>
+						</div>
+						<strong id="discoverSimilarCount" class="result-count">0 artisti</strong>
+					</div>
+					<div id="discoverSimilarList" class="discovery-artist-selection-list"></div>
+					<div class="results-footer">
+						<button id="discoverTracksButton" type="button" class="primary-button">Cerca canzoni</button>
+					</div>
+				</section>
+
+				<section id="discoverTrackResults" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Musica nuova</p>
+							<h2>Brani consigliati</h2>
+						</div>
+						<button id="openDiscoverCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Artisti</span>
+							<strong id="discoverTrackArtistCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Brani nuovi</span>
+							<strong id="discoverTrackCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Periodo base</span>
+							<strong class="source-label">6 mesi</strong>
+						</div>
+					</div>
+
+					<ol id="discoverTrackList" class="song-list"></ol>
+					<div class="results-footer">
+						<button id="openDiscoverCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+				</section>
+			</section>
+		</section>
 	</main>
 
 	<div id="createDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="createTitle">
@@ -480,6 +560,6 @@
 		</div>
 	</div>
 
-	<script src="/app.js?v=similar-artist-selection-1"></script>
+	<script src="/app.js?v=discover-new-music-1"></script>
 </body>
 </html>
