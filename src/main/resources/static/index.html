@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="it">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Playlist Creator</title>
+	<link rel="stylesheet" href="/styles.css?v=copy-updates-1">
+</head>
+<body>
+	<main class="app-shell">
+		<header class="topbar">
+			<div>
+				<p class="eyebrow">setlist.fm + Spotify</p>
+				<h1>Playlist Creator</h1>
+			</div>
+			<div class="topbar-actions">
+				<div id="loginStatus" class="status-pill">Controllo login...</div>
+				<button id="logoutButton" type="button" class="secondary-button compact-button hidden">Logout</button>
+			</div>
+		</header>
+
+		<section id="loginView" class="panel auth-panel hidden">
+			<div class="auth-copy">
+				<h2>Collega Spotify</h2>
+				<p>Accedi al tuo account Spotify per creare playlist a partire da scalette recenti o classifiche Last.fm.</p>
+			</div>
+			<a class="primary-button" href="/spotify/login">Login Spotify</a>
+		</section>
+
+		<section id="homeView" class="home-view hidden">
+			<div class="home-grid">
+				<button id="openSetlistView" type="button" class="navigation-card">
+					<span class="eyebrow">setlist.fm + Spotify</span>
+					<span class="navigation-card-title">Scalette recenti</span>
+					<span class="navigation-card-description">
+						Crea una playlist con i brani suonati nei concerti più recenti di un artista.
+					</span>
+				</button>
+
+				<button id="openGenreView" type="button" class="navigation-card">
+					<span class="eyebrow">Last.fm + Spotify</span>
+					<span class="navigation-card-title">Genere musicale</span>
+					<span class="navigation-card-description">
+						Crea una playlist con i brani più ascoltati degli artisti maggiormente associati a un genere.
+					</span>
+				</button>
+
+				<button id="openDiscographyView" type="button" class="navigation-card">
+					<span class="eyebrow">Spotify + Last.fm</span>
+					<span class="navigation-card-title">Discografia essenziale</span>
+					<span class="navigation-card-description">
+						Crea una playlist che ripercorre in ordine cronologico gli album di un artista attraverso i suoi brani più ascoltati.
+					</span>
+				</button>
+
+				<button id="openTopTracksView" type="button" class="navigation-card">
+					<span class="eyebrow">Spotify</span>
+					<span class="navigation-card-title">I miei brani preferiti</span>
+					<span class="navigation-card-description">
+						Crea una playlist con i tuoi brani più ascoltati in un periodo selezionato.
+					</span>
+				</button>
+
+				<button id="openSimilarArtistsView" type="button" class="navigation-card">
+					<span class="eyebrow">Last.fm + Spotify</span>
+					<span class="navigation-card-title">Artisti simili</span>
+					<span class="navigation-card-description">
+						Crea una playlist con i brani più ascoltati degli artisti maggiormente affini a un artista scelto.
+					</span>
+				</button>
+			</div>
+		</section>
+
+		<section id="setlistView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">setlist.fm</p>
+						<h2>Crea playlist da scalette recenti</h2>
+					</div>
+					<button id="setlistHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<form id="searchForm" class="search-form">
+					<label for="artistName">Artista</label>
+					<div class="search-row">
+						<input id="artistName" name="artistName" type="search" placeholder="Es. Nu Genea" autocomplete="off" required>
+						<button type="submit" class="primary-button">Cerca</button>
+					</div>
+				</form>
+
+				<section id="message" class="message hidden"></section>
+
+				<section id="results" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Preview scaletta</p>
+							<h2 id="artistTitle"></h2>
+						</div>
+						<button id="openCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Brani</span>
+							<strong id="songCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Scalette usate</span>
+							<strong id="setlistCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Origine</span>
+							<a id="artistLink" href="#" target="_blank" rel="noreferrer">setlist.fm</a>
+						</div>
+					</div>
+
+					<div class="content-grid">
+						<section>
+							<h3>Brani recenti</h3>
+							<ol id="songList" class="song-list"></ol>
+						</section>
+						<aside>
+							<h3>Scalette considerate</h3>
+							<div id="setlistList" class="setlist-list"></div>
+						</aside>
+					</div>
+				</section>
+			</section>
+		</section>
+
+		<section id="genreView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">Last.fm + Spotify</p>
+						<h2>Crea playlist per genere</h2>
+					</div>
+					<button id="genreHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<form id="genreArtistForm" class="search-form" action="/api/genre-playlists/artists" method="get">
+					<div class="form-grid">
+						<label>
+							<span>Genere</span>
+							<input id="genreName" name="genre" type="search" placeholder="Es. Punk" autocomplete="off" required>
+						</label>
+						<label>
+							<span>Top artisti</span>
+							<input id="genreArtistLimit" name="artistLimit" type="number" min="1" max="25" value="15" required>
+						</label>
+						<button type="submit" class="primary-button">Cerca</button>
+					</div>
+				</form>
+
+				<section id="genreMessage" class="message hidden"></section>
+
+				<section id="genreArtistResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Top artisti</p>
+							<h2 id="genreArtistTitle"></h2>
+						</div>
+					</div>
+					<ol id="genreArtistList" class="artist-list"></ol>
+				</section>
+
+				<form id="genreTrackForm" class="search-form followup-form hidden" action="/api/genre-playlists/tracks" method="post">
+					<div class="form-grid compact">
+						<label>
+							<span>Canzoni per artista</span>
+							<input id="tracksPerArtist" name="tracksPerArtist" type="number" min="1" max="10" value="3" required>
+						</label>
+						<button type="submit" class="primary-button">Cerca canzoni</button>
+					</div>
+				</form>
+
+				<section id="genreTrackResults" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Preview genere</p>
+							<h2 id="genreTrackTitle"></h2>
+						</div>
+						<button id="openGenreCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Artisti</span>
+							<strong id="genreArtistCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Brani</span>
+							<strong id="genreTrackCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Origine</span>
+							<strong class="source-label">Last.fm</strong>
+						</div>
+					</div>
+
+					<section>
+						<h3>Brani selezionati</h3>
+						<ol id="genreTrackList" class="song-list"></ol>
+					</section>
+					<div class="results-footer">
+						<button id="openGenreCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+				</section>
+			</section>
+		</section>
+
+		<section id="discographyView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">Spotify + Last.fm</p>
+						<h2>Crea playlist dalla discografia di un artista</h2>
+					</div>
+					<button id="discographyHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<form id="discographySearchForm" class="search-form">
+					<label for="discographyArtistName">Artista</label>
+					<div class="search-row">
+						<input id="discographyArtistName" name="artistName" type="search" placeholder="Es. Radiohead" autocomplete="off" required>
+						<button type="submit" class="primary-button">Cerca Album</button>
+					</div>
+				</form>
+
+				<section id="discographyMessage" class="message hidden"></section>
+
+				<section id="discographyAlbumResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Album in ordine cronologico</p>
+							<h2 id="discographyAlbumTitle"></h2>
+						</div>
+						<strong id="discographyAlbumCount" class="result-count">0 album</strong>
+					</div>
+					<div id="discographyAlbumList" class="album-selection-list"></div>
+				</section>
+
+				<form id="discographyTrackForm" class="search-form followup-form hidden">
+					<h3>Crea lista di canzoni a partire da questi album</h3>
+					<div class="form-grid compact">
+						<label>
+							<span>Canzoni per album</span>
+							<select id="discographyTracksPerAlbum" name="tracksPerAlbum">
+								<option value="1">1</option>
+								<option value="2" selected>2</option>
+								<option value="3">3</option>
+							</select>
+						</label>
+						<button type="submit" class="primary-button">Cerca</button>
+					</div>
+				</form>
+
+				<section id="discographyTrackResults" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Discografia essenziale</p>
+							<h2 id="discographyTrackTitle"></h2>
+						</div>
+						<button id="openDiscographyCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Album</span>
+							<strong id="discographySelectedAlbumCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Brani</span>
+							<strong id="discographyTrackCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Ordine</span>
+							<strong class="source-label">Cronologico</strong>
+						</div>
+					</div>
+
+					<div id="discographyTrackList" class="discography-track-list"></div>
+					<div class="results-footer">
+						<button id="openDiscographyCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+				</section>
+			</section>
+		</section>
+
+		<section id="topTracksView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">Spotify</p>
+						<h2>Crea playlist dai tuoi brani preferiti</h2>
+					</div>
+					<button id="topTracksHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<form id="topTracksForm" class="search-form">
+					<div class="form-grid top-tracks-options">
+						<label>
+							<span>Numero di brani</span>
+							<select id="topTracksLimit" name="trackLimit">
+								<option value="10">10</option>
+								<option value="25" selected>25</option>
+								<option value="50">50</option>
+								<option value="100">100</option>
+							</select>
+						</label>
+						<label>
+							<span>Periodo</span>
+							<select id="topTracksMonths" name="months">
+								<option value="1">Ultimo mese</option>
+								<option value="6" selected>Ultimi 6 mesi</option>
+								<option value="12">Ultimi 12 mesi</option>
+							</select>
+						</label>
+						<button type="submit" class="primary-button">Cerca</button>
+					</div>
+				</form>
+
+				<section id="topTracksMessage" class="message hidden"></section>
+
+				<section id="topTracksResults" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">I tuoi ascolti Spotify</p>
+							<h2 id="topTracksTitle"></h2>
+						</div>
+						<button id="openTopTracksCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Brani richiesti</span>
+							<strong id="topTracksRequestedCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Brani disponibili</span>
+							<strong id="topTracksAvailableCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Periodo</span>
+							<strong id="topTracksPeriod" class="source-label"></strong>
+						</div>
+					</div>
+
+					<ol id="topTracksList" class="song-list"></ol>
+					<div class="results-footer">
+						<button id="openTopTracksCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+				</section>
+			</section>
+		</section>
+
+		<section id="similarArtistsView" class="workspace hidden">
+			<section class="feature-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">Last.fm + Spotify</p>
+						<h2>Crea playlist da artisti simili</h2>
+					</div>
+					<button id="similarArtistsHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+				</div>
+
+				<form id="similarArtistsSearchForm" class="search-form">
+					<label for="similarArtistsSourceName">Artista</label>
+					<div class="search-row">
+						<input id="similarArtistsSourceName" name="artistName" type="search" placeholder="Es. Joy Division" autocomplete="off" required>
+						<button type="submit" class="primary-button">Cerca artisti simili</button>
+					</div>
+				</form>
+
+				<section id="similarArtistsMessage" class="message hidden"></section>
+
+				<section id="similarArtistsResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Artisti simili verificati</p>
+							<h2 id="similarArtistsTitle"></h2>
+						</div>
+						<strong id="similarArtistsCount" class="result-count">0 artisti</strong>
+					</div>
+					<div id="similarArtistsList" class="similar-artist-selection-list"></div>
+				</section>
+
+				<form id="similarArtistsTrackForm" class="search-form followup-form hidden">
+					<div class="form-grid compact">
+						<label>
+							<span>Canzoni per artista</span>
+							<input id="similarArtistsTracksPerArtist" name="tracksPerArtist" type="number" min="1" max="10" value="3" required>
+						</label>
+						<button type="submit" class="primary-button">Cerca canzoni</button>
+					</div>
+				</form>
+
+				<section id="similarArtistsTrackResults" class="results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Preview artisti simili</p>
+							<h2 id="similarArtistsTrackTitle"></h2>
+						</div>
+						<button id="openSimilarArtistsCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+
+					<div class="summary-grid">
+						<div>
+							<span class="metric-label">Artisti selezionati</span>
+							<strong id="similarArtistsSelectedCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Brani</span>
+							<strong id="similarArtistsTrackCount">0</strong>
+						</div>
+						<div>
+							<span class="metric-label">Origine</span>
+							<strong class="source-label">Last.fm</strong>
+						</div>
+					</div>
+
+					<ol id="similarArtistsTrackList" class="song-list"></ol>
+					<div class="results-footer">
+						<button id="openSimilarArtistsCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+					</div>
+				</section>
+			</section>
+		</section>
+	</main>
+
+	<div id="createDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+		<form id="createForm" class="dialog">
+			<div class="dialog-header">
+				<h2 id="createTitle">Crea playlist</h2>
+				<button id="closeCreatePanel" type="button" class="icon-button" aria-label="Chiudi">x</button>
+			</div>
+			<label for="playlistName">Titolo playlist</label>
+			<input id="playlistName" name="playlistName" type="text" required>
+
+			<label for="playlistDescription">Descrizione</label>
+			<textarea id="playlistDescription" name="playlistDescription" rows="4"></textarea>
+
+			<div class="dialog-actions">
+				<button type="button" id="cancelCreate" class="secondary-button">Annulla</button>
+				<button type="submit" class="primary-button">Crea su Spotify</button>
+			</div>
+		</form>
+	</div>
+
+	<div id="loadingOverlay" class="loading-backdrop hidden" role="status" aria-live="polite">
+		<div class="loading-panel">
+			<div class="spinner" aria-hidden="true"></div>
+			<div>
+				<h2 id="loadingTitle">Creazione playlist</h2>
+				<p id="loadingText">Ricerca dei brani su Spotify e preparazione della playlist...</p>
+			</div>
+		</div>
+	</div>
+
+	<script src="/app.js?v=copy-updates-1"></script>
+</body>
+</html>
