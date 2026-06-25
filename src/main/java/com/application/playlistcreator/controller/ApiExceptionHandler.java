@@ -1,6 +1,7 @@
 package com.application.playlistcreator.controller;
 
 import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.ExternalApiUnavailableException;
 import com.application.playlistcreator.exception.NoRecentSetlistsException;
 import com.application.playlistcreator.exception.SpotifyAuthenticationException;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,11 @@ public class ApiExceptionHandler {
 	@ExceptionHandler(ExternalApiException.class)
 	public ResponseEntity<ApiError> handleExternalApi(ExternalApiException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ApiError(ex.getMessage()));
+	}
+
+	@ExceptionHandler(ExternalApiUnavailableException.class)
+	public ResponseEntity<ApiError> handleExternalApiUnavailable(ExternalApiUnavailableException ex) {
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ApiError(ex.getMessage()));
 	}
 
 	@ExceptionHandler(RuntimeException.class)

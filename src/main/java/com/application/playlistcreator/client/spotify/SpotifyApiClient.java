@@ -1,11 +1,15 @@
 package com.application.playlistcreator.client.spotify;
 
+import java.net.SocketTimeoutException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.ExternalApiUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -13,11 +17,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
 
 @Component
 public class SpotifyApiClient {
 
 	private static final Logger log = LoggerFactory.getLogger(SpotifyApiClient.class);
+	private static final int READ_MAX_ATTEMPTS = 2;
+	private static final long READ_RETRY_DELAY_MILLIS = 500;
 
 	private final RestClient restClient;
 	private final PlaylistCreatorProperties.Spotify properties;
@@ -30,21 +37,18 @@ public class SpotifyApiClient {
 	}
 
 	public CurrentUser getCurrentUser(String accessToken) {
-		try {
+		return executeRead("Spotify current user request", () -> {
 			log.info("Calling Spotify current user endpoint.");
 			return restClient.get()
 					.uri("/me")
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(CurrentUser.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify current user request", ex), ex);
-		}
+		});
 	}
 
 	public SearchTracksResponse searchTracks(String accessToken, String query) {
-		try {
+		return executeRead("Spotify track search", () -> {
 			log.info("Calling Spotify search endpoint. query={}, market={}", query, properties.market());
 			return restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/search")
@@ -56,14 +60,11 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(SearchTracksResponse.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify track search", ex), ex);
-		}
+		});
 	}
 
 	public SearchArtistsResponse searchArtists(String accessToken, String artistName) {
-		try {
+		return executeRead("Spotify artist search", () -> {
 			log.info("Calling Spotify artist search endpoint. artistName={}", artistName);
 			return restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/search")
@@ -75,10 +76,7 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(SearchArtistsResponse.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify artist search", ex), ex);
-		}
+		});
 	}
 
 	public TopTracksPage getCurrentUserTopTracks(
@@ -86,7 +84,7 @@ public class SpotifyApiClient {
 			String timeRange,
 			int limit,
 			int offset) {
-		try {
+		return executeRead("Spotify current user top tracks search", () -> {
 			log.info("Calling Spotify current user top tracks endpoint. timeRange={}, limit={}, offset={}",
 					timeRange, limit, offset);
 			return restClient.get()
@@ -98,10 +96,7 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(TopTracksPage.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify current user top tracks search", ex), ex);
-		}
+		});
 	}
 
 	public TopArtistsPage getCurrentUserTopArtists(
@@ -109,7 +104,7 @@ public class SpotifyApiClient {
 			String timeRange,
 			int limit,
 			int offset) {
-		try {
+		return executeRead("Spotify current user top artists search", () -> {
 			log.info("Calling Spotify current user top artists endpoint. timeRange={}, limit={}, offset={}",
 					timeRange, limit, offset);
 			return restClient.get()
@@ -121,14 +116,11 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(TopArtistsPage.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify current user top artists search", ex), ex);
-		}
+		});
 	}
 
 	public RecentlyPlayedResponse getRecentlyPlayedTracks(String accessToken, int limit) {
-		try {
+		return executeRead("Spotify recently played tracks search", () -> {
 			log.info("Calling Spotify recently played endpoint. limit={}", limit);
 			return restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/me/player/recently-played")
@@ -137,14 +129,11 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(RecentlyPlayedResponse.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify recently played tracks search", ex), ex);
-		}
+		});
 	}
 
 	public SavedTracksPage getSavedTracks(String accessToken, int limit, int offset) {
-		try {
+		return executeRead("Spotify saved tracks search", () -> {
 			log.info("Calling Spotify saved tracks endpoint. limit={}, offset={}", limit, offset);
 			return restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/me/tracks")
@@ -155,14 +144,11 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(SavedTracksPage.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify saved tracks search", ex), ex);
-		}
+		});
 	}
 
 	public AlbumsPage getArtistAlbums(String accessToken, String artistId, int limit, int offset) {
-		try {
+		return executeRead("Spotify artist albums search", () -> {
 			log.info("Calling Spotify artist albums endpoint. artistId={}, limit={}, offset={}",
 					artistId, limit, offset);
 			return restClient.get()
@@ -175,14 +161,11 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(AlbumsPage.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify artist albums search", ex), ex);
-		}
+		});
 	}
 
 	public AlbumTracksPage getAlbumTracks(String accessToken, String albumId, int limit, int offset) {
-		try {
+		return executeRead("Spotify album tracks search", () -> {
 			log.info("Calling Spotify album tracks endpoint. albumId={}, limit={}, offset={}",
 					albumId, limit, offset);
 			return restClient.get()
@@ -194,10 +177,7 @@ public class SpotifyApiClient {
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.retrieve()
 					.body(AlbumTracksPage.class);
-		}
-		catch (RestClientResponseException ex) {
-			throw new ExternalApiException(toFailureMessage("Spotify album tracks search", ex), ex);
-		}
+		});
 	}
 
 	public Playlist createPlaylist(String accessToken, String name, String description,
@@ -256,6 +236,81 @@ public class SpotifyApiClient {
 
 	private String bearer(String accessToken) {
 		return "Bearer " + accessToken;
+	}
+
+	private <T> T executeRead(String operation, Supplier<T> request) {
+		for (int attempt = 1; attempt <= READ_MAX_ATTEMPTS; attempt++) {
+			try {
+				return request.get();
+			}
+			catch (RestClientResponseException ex) {
+				throw new ExternalApiException(toFailureMessage(operation, ex), ex);
+			}
+			catch (ResourceAccessException ex) {
+				if (isTimeout(ex)) {
+					log.warn("{} timed out. No retry will be attempted.", operation, ex);
+					throw new ExternalApiUnavailableException(
+							"Spotify sta impiegando troppo tempo a rispondere. Riprova tra qualche secondo.",
+							ex);
+				}
+				if (!isRetryableConnectionFailure(ex) || attempt == READ_MAX_ATTEMPTS) {
+					log.warn("{} failed because Spotify is temporarily unreachable. attempt={}/{}",
+							operation, attempt, READ_MAX_ATTEMPTS, ex);
+					throw new ExternalApiUnavailableException(
+							"Connessione a Spotify temporaneamente non disponibile. Riprova tra qualche secondo.",
+							ex);
+				}
+				log.warn("{} interrupted by a transient connection error. Retrying once in {} ms. attempt={}/{}",
+						operation, READ_RETRY_DELAY_MILLIS, attempt, READ_MAX_ATTEMPTS, ex);
+				waitBeforeRetry(operation, ex);
+			}
+		}
+		throw new IllegalStateException("Unreachable Spotify retry state");
+	}
+
+	private void waitBeforeRetry(String operation, ResourceAccessException cause) {
+		try {
+			Thread.sleep(READ_RETRY_DELAY_MILLIS);
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new ExternalApiUnavailableException(
+					"Connessione a Spotify temporaneamente non disponibile. Riprova tra qualche secondo.",
+					cause);
+		}
+	}
+
+	static boolean isRetryableConnectionFailure(Throwable throwable) {
+		for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+			if (cause instanceof SocketTimeoutException) {
+				return false;
+			}
+			String message = cause.getMessage();
+			if (message == null) {
+				continue;
+			}
+			String normalized = message.toLowerCase(Locale.ROOT);
+			if (normalized.contains("connection reset")
+					|| normalized.contains("connection aborted")
+					|| normalized.contains("premature end")
+					|| normalized.contains("unexpected end of file")) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static boolean isTimeout(Throwable throwable) {
+		for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+			if (cause instanceof SocketTimeoutException) {
+				return true;
+			}
+			String message = cause.getMessage();
+			if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private String toFailureMessage(String operation, RestClientResponseException ex) {
