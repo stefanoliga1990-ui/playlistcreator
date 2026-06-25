@@ -79,6 +79,55 @@ public class DiscographyPlaylistService {
 			throw new ExternalApiException("artistName is required");
 		}
 		SpotifyArtist artist = resolveArtist(accessToken, artistName.trim());
+		return findAlbums(accessToken, artist.id(), artist.name());
+	}
+
+	public ArtistSearchResult findArtists(String accessToken, String artistName) {
+		if (artistName == null || artistName.isBlank()) {
+			throw new ExternalApiException("artistName is required");
+		}
+		String query = artistName.trim();
+		String normalizedQuery = songNormalizer.normalizeArtist(query);
+		var response = spotifyApiClient.searchArtists(accessToken, query);
+		List<SpotifyArtist> spotifyArtists = response != null
+				&& response.artists() != null
+				&& response.artists().items() != null
+						? response.artists().items()
+						: List.of();
+		List<ArtistSearchResult.Artist> artists = spotifyArtists.stream()
+				.filter(artist -> artist != null
+						&& artist.id() != null
+						&& artist.name() != null
+						&& songNormalizer.normalizeArtist(artist.name()).contains(normalizedQuery))
+				.sorted(Comparator
+						.comparingInt((SpotifyArtist artist) -> safeInt(artist.popularity())).reversed()
+						.thenComparing(SpotifyArtist::name, String.CASE_INSENSITIVE_ORDER))
+				.map(artist -> new ArtistSearchResult.Artist(
+						artist.id(),
+						artist.name(),
+						safeInt(artist.popularity()),
+						artist.followers() != null ? safeInt(artist.followers().total()) : 0,
+						artist.external_urls() != null ? artist.external_urls().get("spotify") : null))
+				.toList();
+		if (artists.isEmpty()) {
+			throw new ExternalApiException("Nessun artista Spotify trovato per: " + query);
+		}
+		log.info("Spotify artists ready for discography selection. query={}, spotifyCandidates={}, matchingArtists={}",
+				query, spotifyArtists.size(), artists.size());
+		return new ArtistSearchResult(query, artists);
+	}
+
+	public AlbumSearchResult findAlbums(
+			String accessToken,
+			String artistId,
+			String artistName) {
+		if (artistId == null || artistId.isBlank()) {
+			throw new ExternalApiException("artistId is required");
+		}
+		if (artistName == null || artistName.isBlank()) {
+			throw new ExternalApiException("artistName is required");
+		}
+		SpotifyArtist artist = new SpotifyArtist(artistId, artistName.trim(), null, null, null);
 		CachedAlbumSearch cached = albumCache.get(artist.id());
 		if (cached != null && cached.isValid()) {
 			log.info("Using cached Spotify discography. artist={}, artistId={}, albums={}",
@@ -418,7 +467,7 @@ public class DiscographyPlaylistService {
 		CachedAlbumSearch cached = albumCache.get(artistId);
 		AlbumSearchResult search = cached != null && cached.isValid()
 				? cached.result()
-				: findAlbums(accessToken, artistName);
+				: findAlbums(accessToken, artistId, artistName);
 		Set<String> included = new LinkedHashSet<>(includedAlbumIds);
 		List<DiscographyAlbum> albums = search.albums().stream()
 				.filter(album -> included.contains(album.id()))
@@ -524,6 +573,19 @@ public class DiscographyPlaylistService {
 			String artistSpotifyUrl,
 			List<DiscographyAlbum> albums,
 			int filteredAlbumCount) {
+	}
+
+	public record ArtistSearchResult(
+			String query,
+			List<Artist> artists) {
+
+		public record Artist(
+				String id,
+				String name,
+				int popularity,
+				int followers,
+				String spotifyUrl) {
+		}
 	}
 
 	public record AlbumTrackSelection(DiscographyAlbum album, List<DiscographyTrack> tracks) {

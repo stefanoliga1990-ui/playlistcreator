@@ -16,6 +16,7 @@ import com.application.playlistcreator.client.lastfm.LastFmClient.SimilarArtist;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Tag;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Track;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
+import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyArtist;
 import com.application.playlistcreator.dto.SelectedTrackRequest;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.model.GenreTrackCandidate;
@@ -156,6 +157,37 @@ public class SimilarArtistsPlaylistService {
 		log.info("Validated similar artists ready. artist={}, candidates={}, artists={}, warning={}",
 				resolvedArtist, evaluatedCandidates, artists.size(), warning != null);
 		return result;
+	}
+
+	public SourceArtistSearchResult findSourceArtists(String accessToken, String artistName) {
+		String query = validateArtistName(artistName);
+		String normalizedQuery = songNormalizer.normalizeArtist(query);
+		var response = spotifyApiClient.searchArtists(accessToken, query);
+		List<SpotifyArtist> spotifyArtists = response != null
+				&& response.artists() != null
+				&& response.artists().items() != null
+						? response.artists().items()
+						: List.of();
+		List<SourceArtistSearchResult.Artist> artists = spotifyArtists.stream()
+				.filter(artist -> artist != null
+						&& artist.id() != null
+						&& artist.name() != null
+						&& songNormalizer.normalizeArtist(artist.name()).contains(normalizedQuery))
+				.sorted(Comparator
+						.comparingInt((SpotifyArtist artist) -> artist.popularity() != null ? artist.popularity() : 0)
+						.reversed()
+						.thenComparing(SpotifyArtist::name, String.CASE_INSENSITIVE_ORDER))
+				.map(artist -> new SourceArtistSearchResult.Artist(
+						artist.id(),
+						artist.name(),
+						artist.external_urls() != null ? artist.external_urls().get("spotify") : null))
+				.toList();
+		if (artists.isEmpty()) {
+			throw new ExternalApiException("Nessun artista Spotify trovato per: " + query);
+		}
+		log.info("Spotify source artists ready for similar artist search. query={}, spotifyCandidates={}, matchingArtists={}",
+				query, spotifyArtists.size(), artists.size());
+		return new SourceArtistSearchResult(query, artists);
 	}
 
 	public SimilarArtistsPlaylistSelection findTopTracks(
@@ -513,6 +545,14 @@ public class SimilarArtistsPlaylistService {
 			List<SimilarArtistCandidate> artists,
 			int checkedCandidateCount,
 			String warning) {
+	}
+
+	public record SourceArtistSearchResult(
+			String query,
+			List<Artist> artists) {
+
+		public record Artist(String id, String name, String spotifyUrl) {
+		}
 	}
 
 	public record GenerationResult(

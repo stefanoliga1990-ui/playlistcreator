@@ -67,7 +67,7 @@ public class SpotifyApiClient {
 			log.info("Calling Spotify artist search endpoint. artistName={}", artistName);
 			return restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/search")
-							.queryParam("q", "artist:\"" + artistName + "\"")
+							.queryParam("q", artistName)
 							.queryParam("type", "artist")
 							.queryParam("market", properties.market())
 							.queryParam("limit", 10)

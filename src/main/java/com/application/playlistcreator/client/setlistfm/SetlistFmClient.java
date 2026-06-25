@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.SetlistFmArtistNotFoundException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,9 @@ public class SetlistFmClient {
 					.body(ArtistSearchResponse.class);
 		}
 		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 404) {
+				throw new SetlistFmArtistNotFoundException();
+			}
 			throw new ExternalApiException(toFailureMessage("setlist.fm artist search", ex), ex);
 		}
 	}
@@ -54,6 +58,9 @@ public class SetlistFmClient {
 					.body(SetlistsResponse.class);
 		}
 		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 404) {
+				throw new SetlistFmArtistNotFoundException();
+			}
 			throw new ExternalApiException(toFailureMessage("setlist.fm artist setlists search", ex), ex);
 		}
 	}
@@ -71,6 +78,9 @@ public class SetlistFmClient {
 					.body(SetlistsResponse.class);
 		}
 		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 404) {
+				throw new SetlistFmArtistNotFoundException();
+			}
 			throw new ExternalApiException(toFailureMessage("setlist.fm setlists by year search", ex), ex);
 		}
 	}

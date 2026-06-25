@@ -25,7 +25,9 @@ class GenrePlaylistServiceTest {
 	@Test
 	void filtersCandidatesAndReturnsWarningWhenStrongMatchesAreInsufficient() {
 		LastFmClient lastFmClient = mock(LastFmClient.class);
-		when(lastFmClient.getTagInfo("Post Punk"))
+		when(lastFmClient.getTagInfoExact("post punk"))
+				.thenReturn(new TagInfoResponse(new TagInfo("post punk", "400", "300"), null, null));
+		when(lastFmClient.getTagInfoExact("post-punk"))
 				.thenReturn(new TagInfoResponse(new TagInfo("post-punk", "1000", "500"), null, null));
 		when(lastFmClient.getTopArtists("post-punk", 12))
 				.thenReturn(new TopArtistsResponse(new TopArtists(List.of(
@@ -58,6 +60,62 @@ class GenrePlaylistServiceTest {
 		assertThat(result.warning()).contains("Non sono stati trovati 3 artisti")
 				.contains("Verranno mostrati 2 artisti");
 		verify(lastFmClient).getTopArtists("post-punk", 12);
+	}
+
+	@Test
+	void selectsTheSpacedVariantWhenItHasHigherTaggingsAndReach() {
+		LastFmClient lastFmClient = mock(LastFmClient.class);
+		when(lastFmClient.getTagInfoExact("heavy metal"))
+				.thenReturn(new TagInfoResponse(new TagInfo("heavy metal", "5000", "2000"), null, null));
+		when(lastFmClient.getTagInfoExact("heavy-metal"))
+				.thenReturn(new TagInfoResponse(new TagInfo("heavy-metal", "500", "200"), null, null));
+		when(lastFmClient.getTopArtists("heavy metal", 4))
+				.thenReturn(new TopArtistsResponse(
+						new TopArtists(List.of(artist("Metal Artist", "mbid-metal"))),
+						null,
+						null));
+		when(lastFmClient.getArtistTopTags("Metal Artist", "mbid-metal"))
+				.thenReturn(topTags("heavy metal", "metal", "rock"));
+		GenrePlaylistService service = service(lastFmClient);
+
+		var result = service.findTopArtists("Heavy-Metal", 1);
+
+		assertThat(result.genre()).isEqualTo("heavy metal");
+		assertThat(result.artists()).extracting(artist -> artist.name())
+				.containsExactly("Metal Artist");
+		verify(lastFmClient).getTopArtists("heavy metal", 4);
+	}
+
+	@Test
+	void usesTaggingsTimesReachWhenTheMetricsDisagree() {
+		LastFmClient lastFmClient = mock(LastFmClient.class);
+		when(lastFmClient.getTagInfoExact("art rock"))
+				.thenReturn(new TagInfoResponse(new TagInfo("art rock", "1000", "100"), null, null));
+		when(lastFmClient.getTagInfoExact("art-rock"))
+				.thenReturn(new TagInfoResponse(new TagInfo("art-rock", "400", "400"), null, null));
+		when(lastFmClient.getTopArtists("art-rock", 4))
+				.thenReturn(new TopArtistsResponse(
+						new TopArtists(List.of(artist("Art Artist", "mbid-art"))),
+						null,
+						null));
+		when(lastFmClient.getArtistTopTags("Art Artist", "mbid-art"))
+				.thenReturn(topTags("art-rock", "rock", "alternative"));
+		GenrePlaylistService service = service(lastFmClient);
+
+		var result = service.findTopArtists("Art Rock", 1);
+
+		assertThat(result.genre()).isEqualTo("art-rock");
+		verify(lastFmClient).getTopArtists("art-rock", 4);
+	}
+
+	private GenrePlaylistService service(LastFmClient lastFmClient) {
+		return new GenrePlaylistService(
+				lastFmClient,
+				new GenreTagMatcher(),
+				mock(SpotifyTrackMatchingService.class),
+				mock(SpotifyApiClient.class),
+				mock(SongNormalizer.class),
+				properties());
 	}
 
 	private Artist artist(String name, String mbid) {

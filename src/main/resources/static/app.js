@@ -5,9 +5,11 @@ const state = {
 	preview: null,
 	genreArtists: null,
 	genreTracks: null,
+	discographyArtists: null,
 	discographyAlbums: null,
 	discographyTracks: null,
 	topTracks: null,
+	similarSourceArtists: null,
 	similarArtists: null,
 	similarArtistTracks: null,
 	createMode: "setlist",
@@ -64,6 +66,10 @@ const els = {
 	discographySearchForm: document.querySelector("#discographySearchForm"),
 	discographyArtistName: document.querySelector("#discographyArtistName"),
 	discographyMessage: document.querySelector("#discographyMessage"),
+	discographyArtistResults: document.querySelector("#discographyArtistResults"),
+	discographyArtistTitle: document.querySelector("#discographyArtistTitle"),
+	discographyArtistCount: document.querySelector("#discographyArtistCount"),
+	discographyArtistList: document.querySelector("#discographyArtistList"),
 	discographyAlbumResults: document.querySelector("#discographyAlbumResults"),
 	discographyAlbumTitle: document.querySelector("#discographyAlbumTitle"),
 	discographyAlbumCount: document.querySelector("#discographyAlbumCount"),
@@ -92,6 +98,10 @@ const els = {
 	similarArtistsSearchForm: document.querySelector("#similarArtistsSearchForm"),
 	similarArtistsSourceName: document.querySelector("#similarArtistsSourceName"),
 	similarArtistsMessage: document.querySelector("#similarArtistsMessage"),
+	similarSourceArtistResults: document.querySelector("#similarSourceArtistResults"),
+	similarSourceArtistTitle: document.querySelector("#similarSourceArtistTitle"),
+	similarSourceArtistCount: document.querySelector("#similarSourceArtistCount"),
+	similarSourceArtistList: document.querySelector("#similarSourceArtistList"),
 	similarArtistsResults: document.querySelector("#similarArtistsResults"),
 	similarArtistsTitle: document.querySelector("#similarArtistsTitle"),
 	similarArtistsCount: document.querySelector("#similarArtistsCount"),
@@ -139,7 +149,7 @@ function bindEvents() {
 	});
 
 	bindSubmit(els.discographySearchForm, async () => {
-		await previewDiscographyAlbums();
+		await previewDiscographyArtists();
 	});
 
 	bindSubmit(els.discographyTrackForm, async () => {
@@ -151,7 +161,7 @@ function bindEvents() {
 	});
 
 	bindSubmit(els.similarArtistsSearchForm, async () => {
-		await previewSimilarArtists();
+		await previewSimilarSourceArtists();
 	});
 
 	bindSubmit(els.similarArtistsTrackForm, async () => {
@@ -279,7 +289,7 @@ async function previewArtist(artistName) {
 		renderPreview(payload);
 	}
 	catch (error) {
-		showMessage(error.message || "Ricerca non riuscita.", true);
+		showMessage(error.message || "Ricerca non riuscita.", error.type !== "warning");
 	}
 	finally {
 		hideLoading();
@@ -452,7 +462,7 @@ function getSelectedGenreArtistNames() {
 		.filter(Boolean);
 }
 
-async function previewDiscographyAlbums() {
+async function previewDiscographyArtists() {
 	const artistName = els.discographyArtistName.value.trim();
 	if (!artistName) {
 		showDiscographyMessage("Inserisci il nome di un artista.", true);
@@ -460,24 +470,83 @@ async function previewDiscographyAlbums() {
 	}
 	setBusy(els.discographySearchForm, true);
 	hideDiscographyMessage();
+	els.discographyArtistResults.classList.add("hidden");
+	els.discographyAlbumResults.classList.add("hidden");
+	els.discographyTrackForm.classList.add("hidden");
+	els.discographyTrackResults.classList.add("hidden");
+	state.discographyArtists = null;
+	state.discographyAlbums = null;
+	state.discographyTracks = null;
+	showLoading("Ricerca artisti", `Ricerca degli artisti Spotify che contengono "${artistName}"...`);
+	try {
+		const response = await fetch(`/api/discography-playlists/artists?artistName=${encodeURIComponent(artistName)}`);
+		const payload = await parseJsonResponse(response);
+		state.discographyArtists = payload;
+		if (payload.artistCount === 1) {
+			await previewDiscographyAlbums(payload.artists[0]);
+			return;
+		}
+		renderDiscographyArtists(payload);
+	}
+	catch (error) {
+		showDiscographyMessage(error.message || "Ricerca artisti non riuscita.", true);
+	}
+	finally {
+		hideLoading();
+		setBusy(els.discographySearchForm, false);
+	}
+}
+
+function renderDiscographyArtists(payload) {
+	els.discographyArtistTitle.textContent = `Risultati per "${payload.query}"`;
+	els.discographyArtistCount.textContent = `${payload.artistCount} artisti`;
+	els.discographyArtistList.replaceChildren(...payload.artists.map((artist) => {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "discography-artist-item";
+		button.innerHTML = `
+			<span class="discography-artist-name">${escapeHtml(artist.name)}</span>
+			<span class="discography-artist-action">Seleziona</span>
+		`;
+		button.addEventListener("click", async () => {
+			await previewDiscographyAlbums(artist);
+		});
+		return button;
+	}));
+	els.discographyArtistResults.classList.remove("hidden");
+}
+
+async function previewDiscographyAlbums(artist) {
+	if (!artist || !artist.id || !artist.name) {
+		showDiscographyMessage("Seleziona un artista valido.", true);
+		return;
+	}
+	hideDiscographyMessage();
+	els.discographyArtistResults.classList.add("hidden");
 	els.discographyAlbumResults.classList.add("hidden");
 	els.discographyTrackForm.classList.add("hidden");
 	els.discographyTrackResults.classList.add("hidden");
 	state.discographyAlbums = null;
 	state.discographyTracks = null;
-	showLoading("Ricerca album", `Recupero della discografia di ${artistName}...`);
+	showLoading("Ricerca album", `Recupero della discografia di ${artist.name}...`);
 	try {
-		const response = await fetch(`/api/discography-playlists/albums?artistName=${encodeURIComponent(artistName)}`);
+		const params = new URLSearchParams({
+			artistId: artist.id,
+			artistName: artist.name,
+		});
+		const response = await fetch(`/api/discography-playlists/albums?${params.toString()}`);
 		const payload = await parseJsonResponse(response);
 		state.discographyAlbums = payload;
 		renderDiscographyAlbums(payload);
 	}
 	catch (error) {
+		if (state.discographyArtists && state.discographyArtists.artistCount > 1) {
+			els.discographyArtistResults.classList.remove("hidden");
+		}
 		showDiscographyMessage(error.message || "Ricerca album non riuscita.", true);
 	}
 	finally {
 		hideLoading();
-		setBusy(els.discographySearchForm, false);
 	}
 }
 
@@ -638,7 +707,7 @@ function renderTopTracks(payload) {
 	els.topTracksResults.classList.remove("hidden");
 }
 
-async function previewSimilarArtists() {
+async function previewSimilarSourceArtists() {
 	const artistName = els.similarArtistsSourceName.value.trim();
 	if (!artistName) {
 		showSimilarArtistsMessage("Inserisci il nome di un artista.", true);
@@ -646,6 +715,62 @@ async function previewSimilarArtists() {
 	}
 	setBusy(els.similarArtistsSearchForm, true);
 	hideSimilarArtistsMessage();
+	els.similarSourceArtistResults.classList.add("hidden");
+	els.similarArtistsResults.classList.add("hidden");
+	els.similarArtistsTrackForm.classList.add("hidden");
+	els.similarArtistsTrackResults.classList.add("hidden");
+	state.similarSourceArtists = null;
+	state.similarArtists = null;
+	state.similarArtistTracks = null;
+	showLoading(
+		"Ricerca artisti",
+		`Ricerca degli artisti Spotify che contengono "${artistName}"...`);
+	try {
+		const response = await fetch(
+			`/api/similar-artists-playlists/source-artists?artistName=${encodeURIComponent(artistName)}`);
+		const payload = await parseJsonResponse(response);
+		state.similarSourceArtists = payload;
+		if (payload.artistCount === 1) {
+			await loadSimilarArtists(payload.artists[0]);
+			return;
+		}
+		renderSimilarSourceArtists(payload);
+	}
+	catch (error) {
+		showSimilarArtistsMessage(error.message || "Ricerca artisti non riuscita.", true);
+	}
+	finally {
+		hideLoading();
+		setBusy(els.similarArtistsSearchForm, false);
+	}
+}
+
+function renderSimilarSourceArtists(payload) {
+	els.similarSourceArtistTitle.textContent = `Risultati per "${payload.query}"`;
+	els.similarSourceArtistCount.textContent = `${payload.artistCount} artisti`;
+	els.similarSourceArtistList.replaceChildren(...payload.artists.map((artist) => {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "discography-artist-item";
+		button.innerHTML = `
+			<span class="discography-artist-name">${escapeHtml(artist.name)}</span>
+			<span class="discography-artist-action">Seleziona</span>
+		`;
+		button.addEventListener("click", async () => {
+			await loadSimilarArtists(artist);
+		});
+		return button;
+	}));
+	els.similarSourceArtistResults.classList.remove("hidden");
+}
+
+async function loadSimilarArtists(artist) {
+	if (!artist || !artist.name) {
+		showSimilarArtistsMessage("Seleziona un artista valido.", true);
+		return;
+	}
+	hideSimilarArtistsMessage();
+	els.similarSourceArtistResults.classList.add("hidden");
 	els.similarArtistsResults.classList.add("hidden");
 	els.similarArtistsTrackForm.classList.add("hidden");
 	els.similarArtistsTrackResults.classList.add("hidden");
@@ -653,10 +778,10 @@ async function previewSimilarArtists() {
 	state.similarArtistTracks = null;
 	showLoading(
 		"Ricerca artisti simili",
-		`Analisi della similarità, dei tag e delle relazioni reciproche per ${artistName}...`);
+		`Analisi della similarita, dei tag e delle relazioni reciproche per ${artist.name}...`);
 	try {
 		const response = await fetch(
-			`/api/similar-artists-playlists/artists?artistName=${encodeURIComponent(artistName)}`);
+			`/api/similar-artists-playlists/artists?artistName=${encodeURIComponent(artist.name)}`);
 		const payload = await parseJsonResponse(response);
 		state.similarArtists = payload;
 		renderSimilarArtists(payload);
@@ -665,11 +790,13 @@ async function previewSimilarArtists() {
 		}
 	}
 	catch (error) {
+		if (state.similarSourceArtists && state.similarSourceArtists.artistCount > 1) {
+			els.similarSourceArtistResults.classList.remove("hidden");
+		}
 		showSimilarArtistsMessage(error.message || "Ricerca degli artisti simili non riuscita.", true);
 	}
 	finally {
 		hideLoading();
-		setBusy(els.similarArtistsSearchForm, false);
 	}
 }
 
@@ -988,14 +1115,19 @@ function resetGenreSection() {
 }
 
 function resetDiscographySection() {
+	state.discographyArtists = null;
 	state.discographyAlbums = null;
 	state.discographyTracks = null;
 	els.discographyArtistName.value = "";
 	els.discographyTracksPerAlbum.value = "2";
 	hideDiscographyMessage();
+	els.discographyArtistResults.classList.add("hidden");
 	els.discographyAlbumResults.classList.add("hidden");
 	els.discographyTrackForm.classList.add("hidden");
 	els.discographyTrackResults.classList.add("hidden");
+	els.discographyArtistTitle.textContent = "";
+	els.discographyArtistCount.textContent = "0 artisti";
+	els.discographyArtistList.replaceChildren();
 	els.discographyAlbumTitle.textContent = "";
 	els.discographyAlbumCount.textContent = "0 album";
 	els.discographyAlbumList.replaceChildren();
@@ -1019,14 +1151,19 @@ function resetTopTracksSection() {
 }
 
 function resetSimilarArtistsSection() {
+	state.similarSourceArtists = null;
 	state.similarArtists = null;
 	state.similarArtistTracks = null;
 	els.similarArtistsSourceName.value = "";
 	els.similarArtistsTracksPerArtist.value = "3";
 	hideSimilarArtistsMessage();
+	els.similarSourceArtistResults.classList.add("hidden");
 	els.similarArtistsResults.classList.add("hidden");
 	els.similarArtistsTrackForm.classList.add("hidden");
 	els.similarArtistsTrackResults.classList.add("hidden");
+	els.similarSourceArtistTitle.textContent = "";
+	els.similarSourceArtistCount.textContent = "0 artisti";
+	els.similarSourceArtistList.replaceChildren();
 	els.similarArtistsTitle.textContent = "";
 	els.similarArtistsCount.textContent = "0 artisti";
 	els.similarArtistsList.replaceChildren();
@@ -1344,7 +1481,9 @@ function removeExcludedTracksMessage(container) {
 async function parseJsonResponse(response) {
 	const payload = await response.json().catch(() => ({}));
 	if (!response.ok) {
-		throw new Error(payload.message || `Errore HTTP ${response.status}`);
+		const error = new Error(payload.message || `Errore HTTP ${response.status}`);
+		error.type = payload.type || "error";
+		throw error;
 	}
 	return payload;
 }

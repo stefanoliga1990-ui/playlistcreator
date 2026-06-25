@@ -424,6 +424,45 @@ h3 {
 	margin-top: 18px;
 }
 
+.discography-artist-list {
+	display: grid;
+	gap: 10px;
+	margin-top: 18px;
+}
+
+.discography-artist-item {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 16px;
+	width: 100%;
+	min-height: 62px;
+	padding: 10px 14px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #fff;
+	color: var(--text);
+	text-align: left;
+	cursor: pointer;
+}
+
+.discography-artist-item:hover,
+.discography-artist-item:focus-visible {
+	border-color: var(--accent);
+	background: #f3fbf6;
+}
+
+.discography-artist-name {
+	min-width: 0;
+	font-weight: 800;
+}
+
+.discography-artist-action {
+	color: var(--accent-dark);
+	font-size: 13px;
+	font-weight: 800;
+}
+
 .similar-artist-selection-item {
 	display: grid;
 	grid-template-columns: auto 42px minmax(180px, 1fr) minmax(220px, 1.2fr) auto;
@@ -783,6 +822,10 @@ a {
 
 	.similar-artist-selection-item {
 		grid-template-columns: auto 38px minmax(0, 1fr) auto;
+	}
+
+	.discography-artist-item {
+		grid-template-columns: minmax(0, 1fr) auto;
 	}
 
 	.similarity-signals {

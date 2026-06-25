@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 
 import com.application.playlistcreator.client.lastfm.LastFmClient;
 import com.application.playlistcreator.client.lastfm.LastFmClient.SimilarArtist;
@@ -18,9 +19,29 @@ import com.application.playlistcreator.client.lastfm.LastFmClient.TopTagsRespons
 import com.application.playlistcreator.client.lastfm.LastFmClient.TopTracks;
 import com.application.playlistcreator.client.lastfm.LastFmClient.TopTracksResponse;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
+import com.application.playlistcreator.client.spotify.SpotifyApiClient.Artists;
+import com.application.playlistcreator.client.spotify.SpotifyApiClient.SearchArtistsResponse;
+import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyArtist;
 import org.junit.jupiter.api.Test;
 
 class SimilarArtistsPlaylistServiceTest {
+
+	@Test
+	void returnsSpotifySourceArtistsWhoseNamesContainTheSearchText() {
+		LastFmClient lastFm = mock(LastFmClient.class);
+		SpotifyApiClient spotify = mock(SpotifyApiClient.class);
+		when(spotify.searchArtists("token", "Cure"))
+				.thenReturn(new SearchArtistsResponse(new Artists(List.of(
+						new SpotifyArtist("cure-paranoia", "Cure for Paranoia", 20, null, Map.of()),
+						new SpotifyArtist("the-cure", "The Cure", 85, null, Map.of()),
+						new SpotifyArtist("other", "Different Artist", 99, null, Map.of())))));
+		SimilarArtistsPlaylistService service = service(lastFm, spotify);
+
+		var result = service.findSourceArtists("token", "Cure");
+
+		assertThat(result.artists()).extracting(artist -> artist.name())
+				.containsExactly("The Cure", "Cure for Paranoia");
+	}
 
 	@Test
 	void combinesDirectReciprocalAndTagSimilarityAndRanksStrongestCandidates() {
@@ -119,10 +140,14 @@ class SimilarArtistsPlaylistServiceTest {
 	}
 
 	private SimilarArtistsPlaylistService service(LastFmClient lastFm) {
+		return service(lastFm, mock(SpotifyApiClient.class));
+	}
+
+	private SimilarArtistsPlaylistService service(LastFmClient lastFm, SpotifyApiClient spotify) {
 		return new SimilarArtistsPlaylistService(
 				lastFm,
 				mock(SpotifyTrackMatchingService.class),
-				mock(SpotifyApiClient.class),
+				spotify,
 				new SongNormalizer());
 	}
 

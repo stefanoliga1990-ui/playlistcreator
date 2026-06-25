@@ -3,6 +3,7 @@ package com.application.playlistcreator.controller;
 import com.application.playlistcreator.dto.GenerateDiscographyPlaylistRequest;
 import com.application.playlistcreator.dto.GenerateDiscographyPlaylistResponse;
 import com.application.playlistcreator.dto.PreviewDiscographyAlbumsResponse;
+import com.application.playlistcreator.dto.PreviewDiscographyArtistsResponse;
 import com.application.playlistcreator.dto.PreviewDiscographyTracksRequest;
 import com.application.playlistcreator.dto.PreviewDiscographyTracksResponse;
 import com.application.playlistcreator.service.DiscographyPlaylistService;
@@ -35,14 +36,32 @@ public class DiscographyPlaylistController {
 
 	@GetMapping("/albums")
 	public PreviewDiscographyAlbumsResponse previewAlbums(
+			@RequestParam(required = false) String artistId,
 			@RequestParam String artistName,
 			HttpSession session) {
-		log.info("Discography albums preview requested. artistName={}, sessionId={}", artistName, session.getId());
+		log.info("Discography albums preview requested. artistId={}, artistName={}, sessionId={}",
+				artistId, artistName, session.getId());
 		var token = spotifyOAuthService.getValidToken(session);
-		var response = PreviewDiscographyAlbumsResponse.from(
-				discographyPlaylistService.findAlbums(token.accessToken(), artistName));
+		var result = artistId != null && !artistId.isBlank()
+				? discographyPlaylistService.findAlbums(token.accessToken(), artistId, artistName)
+				: discographyPlaylistService.findAlbums(token.accessToken(), artistName);
+		var response = PreviewDiscographyAlbumsResponse.from(result);
 		log.info("Discography albums preview completed. artist={}, albums={}, filteredAlbums={}",
 				response.artist().name(), response.albumCount(), response.filteredAlbumCount());
+		return response;
+	}
+
+	@GetMapping("/artists")
+	public PreviewDiscographyArtistsResponse previewArtists(
+			@RequestParam String artistName,
+			HttpSession session) {
+		log.info("Discography artists search requested. artistName={}, sessionId={}",
+				artistName, session.getId());
+		var token = spotifyOAuthService.getValidToken(session);
+		var response = PreviewDiscographyArtistsResponse.from(
+				discographyPlaylistService.findArtists(token.accessToken(), artistName));
+		log.info("Discography artists search completed. query={}, artists={}",
+				response.query(), response.artistCount());
 		return response;
 	}
 

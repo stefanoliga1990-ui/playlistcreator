@@ -1,5 +1,6 @@
 package com.application.playlistcreator.service;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -13,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.application.playlistcreator.client.lastfm.LastFmClient;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Artist;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Tag;
+import com.application.playlistcreator.client.lastfm.LastFmClient.TagInfo;
+import com.application.playlistcreator.client.lastfm.LastFmClient.TagInfoResponse;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Track;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
@@ -74,7 +77,7 @@ public class GenrePlaylistService {
 			return cachedArtists.result();
 		}
 
-		var tagInfoResponse = lastFmClient.getTagInfo(normalizedGenre);
+		TagInfoResponse tagInfoResponse = resolveGenreTag(normalizedGenre);
 		if (tagInfoResponse == null || tagInfoResponse.tag() == null
 				|| tagInfoResponse.tag().name() == null || tagInfoResponse.tag().name().isBlank()) {
 			throw new ExternalApiException("No Last.fm tag found for genre: " + normalizedGenre);
@@ -315,6 +318,99 @@ public class GenrePlaylistService {
 			throw new ExternalApiException("genre is required");
 		}
 		return genre.trim();
+	}
+
+	private TagInfoResponse resolveGenreTag(String requestedGenre) {
+		String normalized = genreTagMatcher.normalize(requestedGenre);
+		if (!normalized.contains(" ")) {
+			return lastFmClient.getTagInfo(requestedGenre);
+		}
+
+		String spacedVariant = normalized;
+		String hyphenatedVariant = normalized.replace(' ', '-');
+		TagInfoResponse spacedInfo = getExactTagInfoIfAvailable(spacedVariant);
+		TagInfoResponse hyphenatedInfo = getExactTagInfoIfAvailable(hyphenatedVariant);
+
+		if (!hasValidTag(spacedInfo) && !hasValidTag(hyphenatedInfo)) {
+			log.info("No exact Last.fm tag variant found. requestedGenre={}; trying autocorrect fallback",
+					requestedGenre);
+			return lastFmClient.getTagInfo(requestedGenre);
+		}
+		if (!hasValidTag(spacedInfo)) {
+			logResolvedGenreTag(requestedGenre, hyphenatedInfo.tag(), null);
+			return hyphenatedInfo;
+		}
+		if (!hasValidTag(hyphenatedInfo)) {
+			logResolvedGenreTag(requestedGenre, spacedInfo.tag(), null);
+			return spacedInfo;
+		}
+
+		TagInfo selectedTag = selectMostEstablishedTag(spacedInfo.tag(), hyphenatedInfo.tag());
+		TagInfoResponse selectedResponse = selectedTag == spacedInfo.tag() ? spacedInfo : hyphenatedInfo;
+		TagInfo discardedTag = selectedTag == spacedInfo.tag() ? hyphenatedInfo.tag() : spacedInfo.tag();
+		logResolvedGenreTag(requestedGenre, selectedTag, discardedTag);
+		return selectedResponse;
+	}
+
+	private TagInfoResponse getExactTagInfoIfAvailable(String genre) {
+		try {
+			return lastFmClient.getTagInfoExact(genre);
+		}
+		catch (ExternalApiException ex) {
+			if (isRateLimitError(ex)) {
+				throw ex;
+			}
+			log.info("Exact Last.fm tag variant is not available. genre={}, reason={}", genre, ex.getMessage());
+			return null;
+		}
+	}
+
+	private boolean hasValidTag(TagInfoResponse response) {
+		return response != null
+				&& response.tag() != null
+				&& response.tag().name() != null
+				&& !response.tag().name().isBlank();
+	}
+
+	private TagInfo selectMostEstablishedTag(TagInfo first, TagInfo second) {
+		long firstTaggings = parseLong(first.total());
+		long secondTaggings = parseLong(second.total());
+		long firstReach = parseLong(first.reach());
+		long secondReach = parseLong(second.reach());
+
+		if (firstTaggings >= secondTaggings && firstReach >= secondReach
+				&& (firstTaggings > secondTaggings || firstReach > secondReach)) {
+			return first;
+		}
+		if (secondTaggings >= firstTaggings && secondReach >= firstReach
+				&& (secondTaggings > firstTaggings || secondReach > firstReach)) {
+			return second;
+		}
+
+		BigInteger firstScore = BigInteger.valueOf(firstTaggings).multiply(BigInteger.valueOf(firstReach));
+		BigInteger secondScore = BigInteger.valueOf(secondTaggings).multiply(BigInteger.valueOf(secondReach));
+		int scoreComparison = firstScore.compareTo(secondScore);
+		if (scoreComparison != 0) {
+			return scoreComparison > 0 ? first : second;
+		}
+		if (firstReach != secondReach) {
+			return firstReach > secondReach ? first : second;
+		}
+		if (firstTaggings != secondTaggings) {
+			return firstTaggings > secondTaggings ? first : second;
+		}
+		return first;
+	}
+
+	private void logResolvedGenreTag(String requestedGenre, TagInfo selectedTag, TagInfo discardedTag) {
+		log.info("Last.fm genre tag variant resolved. requestedGenre={}, selectedTag={}, selectedTaggings={}, selectedReach={}, discardedTag={}, discardedTaggings={}, discardedReach={}",
+				requestedGenre,
+				selectedTag.name(),
+				selectedTag.total(),
+				selectedTag.reach(),
+				discardedTag != null ? discardedTag.name() : null,
+				discardedTag != null ? discardedTag.total() : null,
+				discardedTag != null ? discardedTag.reach() : null);
 	}
 
 	private int validateLimit(Integer value, int defaultValue, int maxValue, String fieldName) {

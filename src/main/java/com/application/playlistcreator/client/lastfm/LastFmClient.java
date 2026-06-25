@@ -49,13 +49,21 @@ public class LastFmClient {
 	}
 
 	public TagInfoResponse getTagInfo(String genre) {
+		return getTagInfo(genre, true);
+	}
+
+	public TagInfoResponse getTagInfoExact(String genre) {
+		return getTagInfo(genre, false);
+	}
+
+	private TagInfoResponse getTagInfo(String genre, boolean autocorrect) {
 		try {
-			log.info("Calling Last.fm tag info endpoint. genre={}", genre);
+			log.info("Calling Last.fm tag info endpoint. genre={}, autocorrect={}", genre, autocorrect);
 			TagInfoResponse response = restClient.get()
 					.uri(uriBuilder -> uriBuilder
 							.queryParam("method", "tag.getinfo")
 							.queryParam("tag", genre)
-							.queryParam("autocorrect", 1)
+							.queryParam("autocorrect", autocorrect ? 1 : 0)
 							.queryParam("api_key", properties.apiKey())
 							.queryParam("format", "json")
 							.build())

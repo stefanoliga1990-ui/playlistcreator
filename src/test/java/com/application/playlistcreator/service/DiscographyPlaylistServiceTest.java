@@ -2,6 +2,8 @@ package com.application.playlistcreator.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -22,6 +24,45 @@ import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyAr
 import org.junit.jupiter.api.Test;
 
 class DiscographyPlaylistServiceTest {
+
+	@Test
+	void returnsArtistsWhoseNamesContainTheSearchTextOrderedByPopularity() {
+		SpotifyApiClient spotify = mock(SpotifyApiClient.class);
+		LastFmClient lastFm = mock(LastFmClient.class);
+		when(spotify.searchArtists("token", "Cure"))
+				.thenReturn(new SearchArtistsResponse(new Artists(List.of(
+						new SpotifyArtist("cure-paranoia", "Cure for Paranoia", 20, null, Map.of()),
+						new SpotifyArtist("the-cure", "The Cure", 85, null, Map.of()),
+						new SpotifyArtist("other", "Different Artist", 99, null, Map.of())))));
+		DiscographyPlaylistService service = new DiscographyPlaylistService(
+				spotify, lastFm, new SongNormalizer());
+
+		var result = service.findArtists("token", "Cure");
+
+		assertThat(result.artists()).extracting(artist -> artist.name())
+				.containsExactly("The Cure", "Cure for Paranoia");
+	}
+
+	@Test
+	void loadsAlbumsForTheSelectedArtistIdWithoutSearchingTheArtistAgain() {
+		SpotifyApiClient spotify = mock(SpotifyApiClient.class);
+		LastFmClient lastFm = mock(LastFmClient.class);
+		when(spotify.getArtistAlbums("token", "the-cure", 10, 0))
+				.thenReturn(new AlbumsPage(
+						List.of(albumForArtist("a1", "Three Imaginary Boys", "1979", 13,
+								"the-cure", "The Cure")),
+						1, 10, 0, null));
+		DiscographyPlaylistService service = new DiscographyPlaylistService(
+				spotify, lastFm, new SongNormalizer());
+
+		var result = service.findAlbums("token", "the-cure", "The Cure");
+
+		assertThat(result.artistId()).isEqualTo("the-cure");
+		assertThat(result.artistName()).isEqualTo("The Cure");
+		assertThat(result.albums()).extracting(album -> album.name())
+				.containsExactly("Three Imaginary Boys");
+		verify(spotify, never()).searchArtists("token", "The Cure");
+	}
 
 	@Test
 	void filtersLiveAndCollectionsAndConsolidatesEditionsChronologically() {
@@ -107,9 +148,19 @@ class DiscographyPlaylistServiceTest {
 	}
 
 	private SimplifiedAlbum album(String id, String name, String releaseDate, int tracks) {
+		return albumForArtist(id, name, releaseDate, tracks, "artist-1", "Test Artist");
+	}
+
+	private SimplifiedAlbum albumForArtist(
+			String id,
+			String name,
+			String releaseDate,
+			int tracks,
+			String artistId,
+			String artistName) {
 		return new SimplifiedAlbum(
-				id, name, "album", "album", releaseDate, "day", tracks,
-				List.of(new Artist("artist-1", "Test Artist")), Map.of());
+			id, name, "album", "album", releaseDate, "day", tracks,
+				List.of(new Artist(artistId, artistName)), Map.of());
 	}
 
 	private SimplifiedTrack simplifiedTrack(String id, String name, int trackNumber) {

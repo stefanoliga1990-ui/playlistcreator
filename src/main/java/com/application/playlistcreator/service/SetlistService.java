@@ -23,7 +23,8 @@ import com.application.playlistcreator.client.setlistfm.SetlistFmClient;
 import com.application.playlistcreator.client.setlistfm.SetlistFmClient.Artist;
 import com.application.playlistcreator.client.setlistfm.SetlistFmClient.Setlist;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
-import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.NoRecentSetlistsException;
+import com.application.playlistcreator.exception.SetlistFmArtistNotFoundException;
 import com.application.playlistcreator.model.ArtistCandidate;
 import com.application.playlistcreator.model.CandidateSong;
 import com.application.playlistcreator.model.ConcertSetlist;
@@ -74,10 +75,12 @@ public class SetlistService {
 		log.info("Building setlist selection. artistName={}, cacheKey={}", artistName, cacheKey);
 		ArtistCandidate artist = findBestArtist(artistName);
 		List<ConcertSetlist> validSetlists = loadValidRecentSetlists(artist.musicBrainzId());
-		if (validSetlists.size() < 3) {
-			log.warn("Not enough valid setlists found. artistName={}, resolvedArtist={}, validSetlists={}",
-					artistName, artist.name(), validSetlists.size());
-			throw new ExternalApiException("Not enough valid setlists found for artist " + artist.name());
+		if (validSetlists.isEmpty()) {
+			log.warn("No valid recent setlists found. artistName={}, resolvedArtist={}, maxAgeMonths={}",
+					artistName, artist.name(), properties.maxAgeMonths());
+			throw new NoRecentSetlistsException(
+					"Non sono state trovate scalette negli ultimi " + properties.maxAgeMonths()
+							+ " mesi per " + artist.name() + ".");
 		}
 		List<ConcertSetlist> selectedSetlists = validSetlists.stream().limit(3).toList();
 		List<CandidateSong> recentSongs = findRecentSongs(selectedSetlists);
@@ -94,7 +97,7 @@ public class SetlistService {
 		List<Artist> artists = response != null && response.artist() != null ? response.artist() : List.of();
 		if (artists.isEmpty()) {
 			log.warn("No setlist.fm artist found. artistName={}", artistName);
-			throw new ExternalApiException("No setlist.fm artist found for: " + artistName);
+			throw new SetlistFmArtistNotFoundException();
 		}
 		String requested = songNormalizer.normalizeArtist(artistName);
 		Artist bestArtist = artists.stream()
@@ -140,12 +143,21 @@ public class SetlistService {
 		}
 		log.info("Falling back to recent setlists by year. mbid={}, validSetlistsBeforeFallback={}",
 				musicBrainzId, validSetlists.size());
-		loadRecentSetlistsByYear(musicBrainzId, setlists);
+		try {
+			loadRecentSetlistsByYear(musicBrainzId, setlists);
+		}
+		catch (SetlistFmArtistNotFoundException ex) {
+			if (validSetlists.isEmpty()) {
+				throw ex;
+			}
+			log.info("Setlist year fallback returned no data; using already loaded valid setlists. mbid={}, validSetlists={}",
+					musicBrainzId, validSetlists.size());
+		}
 		return filterAndSortValidSetlists(setlists.values().stream().toList());
 	}
 
 	private void loadRecentSetlistsByYear(String musicBrainzId, Map<String, ConcertSetlist> setlists) {
-		LocalDate threshold = LocalDate.now().minusMonths(3);
+		LocalDate threshold = recentSetlistThreshold();
 		Set<Integer> years = new LinkedHashSet<>();
 		years.add(LocalDate.now().getYear());
 		years.add(threshold.getYear());
@@ -188,10 +200,16 @@ public class SetlistService {
 	}
 
 	private List<ConcertSetlist> filterAndSortValidSetlists(List<ConcertSetlist> setlists) {
+		LocalDate threshold = recentSetlistThreshold();
 		return setlists.stream()
+				.filter(setlist -> !setlist.eventDate().isBefore(threshold))
 				.filter(setlist -> setlist.songs().size() >= properties.minSongsPerSetlist())
 				.sorted(Comparator.comparing(ConcertSetlist::eventDate).reversed())
 				.toList();
+	}
+
+	private LocalDate recentSetlistThreshold() {
+		return LocalDate.now().minusMonths(properties.maxAgeMonths());
 	}
 
 	private Optional<ConcertSetlist> mapSetlist(Setlist rawSetlist) {

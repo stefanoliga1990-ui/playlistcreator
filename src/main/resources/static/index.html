@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Playlist Creator</title>
-	<link rel="stylesheet" href="/styles.css?v=copy-updates-1">
+	<link rel="stylesheet" href="/styles.css?v=similar-artist-selection-1">
 </head>
 <body>
 	<main class="app-shell">
@@ -224,11 +224,22 @@
 					<label for="discographyArtistName">Artista</label>
 					<div class="search-row">
 						<input id="discographyArtistName" name="artistName" type="search" placeholder="Es. Radiohead" autocomplete="off" required>
-						<button type="submit" class="primary-button">Cerca Album</button>
+						<button type="submit" class="primary-button">Cerca</button>
 					</div>
 				</form>
 
 				<section id="discographyMessage" class="message hidden"></section>
+
+				<section id="discographyArtistResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Artisti trovati</p>
+							<h2 id="discographyArtistTitle"></h2>
+						</div>
+						<strong id="discographyArtistCount" class="result-count">0 artisti</strong>
+					</div>
+					<div id="discographyArtistList" class="discography-artist-list"></div>
+				</section>
 
 				<section id="discographyAlbumResults" class="results compact-results hidden">
 					<div class="results-header">
@@ -375,6 +386,17 @@
 
 				<section id="similarArtistsMessage" class="message hidden"></section>
 
+				<section id="similarSourceArtistResults" class="results compact-results hidden">
+					<div class="results-header">
+						<div>
+							<p class="eyebrow">Artisti trovati</p>
+							<h2 id="similarSourceArtistTitle"></h2>
+						</div>
+						<strong id="similarSourceArtistCount" class="result-count">0 artisti</strong>
+					</div>
+					<div id="similarSourceArtistList" class="discography-artist-list"></div>
+				</section>
+
 				<section id="similarArtistsResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
@@ -458,6 +480,6 @@
 		</div>
 	</div>
 
-	<script src="/app.js?v=copy-updates-1"></script>
+	<script src="/app.js?v=similar-artist-selection-1"></script>
 </body>
 </html>

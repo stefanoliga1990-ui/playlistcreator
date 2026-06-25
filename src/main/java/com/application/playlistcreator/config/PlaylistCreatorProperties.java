@@ -14,7 +14,8 @@ public record PlaylistCreatorProperties(
 			String apiKey,
 			String acceptLanguage,
 			int maxPagesToScan,
-			int minSongsPerSetlist) {
+			int minSongsPerSetlist,
+			int maxAgeMonths) {
 	}
 
 	public record Spotify(

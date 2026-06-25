@@ -5,6 +5,7 @@ import com.application.playlistcreator.dto.GenerateSimilarArtistsPlaylistRespons
 import com.application.playlistcreator.dto.PreviewSimilarArtistTracksRequest;
 import com.application.playlistcreator.dto.PreviewSimilarArtistTracksResponse;
 import com.application.playlistcreator.dto.PreviewSimilarArtistsResponse;
+import com.application.playlistcreator.dto.PreviewSimilarSourceArtistsResponse;
 import com.application.playlistcreator.service.SimilarArtistsPlaylistService;
 import com.application.playlistcreator.service.SpotifyOAuthService;
 import jakarta.servlet.http.HttpSession;
@@ -41,6 +42,20 @@ public class SimilarArtistsPlaylistController {
 		log.info("Similar artists preview completed. sourceArtist={}, checkedCandidates={}, artists={}, warning={}",
 				response.sourceArtistName(), response.checkedCandidateCount(),
 				response.artistCount(), response.warning() != null);
+		return response;
+	}
+
+	@GetMapping("/source-artists")
+	public PreviewSimilarSourceArtistsResponse previewSourceArtists(
+			@RequestParam String artistName,
+			HttpSession session) {
+		log.info("Similar artists source search requested. artistName={}, sessionId={}",
+				artistName, session.getId());
+		var token = spotifyOAuthService.getValidToken(session);
+		var response = PreviewSimilarSourceArtistsResponse.from(
+				similarArtistsPlaylistService.findSourceArtists(token.accessToken(), artistName));
+		log.info("Similar artists source search completed. query={}, artists={}",
+				response.query(), response.artistCount());
 		return response;
 	}
 
