@@ -66,6 +66,19 @@ public class SpotifyTrackMatchingService {
 		return matches;
 	}
 
+	public GenreTrackMatch matchGenreTrack(String accessToken, GenreTrackCandidate track) {
+		CandidateSong song = new CandidateSong(
+				track.title(),
+				track.normalizedTitle(),
+				track.trackRank(),
+				track.trackRank(),
+				false,
+				null);
+		return new GenreTrackMatch(
+				track,
+				matchTrack(accessToken, track.artistName(), song));
+	}
+
 	private SpotifyTrackMatch matchTrack(String accessToken, String artistName, CandidateSong song) {
 		List<String> queries = buildQueries(artistName, song);
 		SpotifyTrackMatch bestMatch = null;

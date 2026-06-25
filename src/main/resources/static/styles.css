@@ -171,14 +171,6 @@ h3 {
 	grid-column: span 2;
 }
 
-.navigation-card:nth-child(4) {
-	grid-column: 2 / span 2;
-}
-
-.navigation-card:nth-child(5) {
-	grid-column: 4 / span 2;
-}
-
 .navigation-card:hover {
 	border-color: rgba(29, 185, 84, 0.6);
 	box-shadow: 0 22px 52px rgba(23, 33, 28, 0.16);
@@ -428,6 +420,50 @@ h3 {
 	display: grid;
 	gap: 10px;
 	margin-top: 18px;
+}
+
+.discovery-artist-selection-list {
+	display: grid;
+	gap: 10px;
+	margin-top: 18px;
+}
+
+.discovery-artist-item {
+	display: grid;
+	grid-template-columns: auto 44px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+	min-height: 62px;
+	padding: 10px 14px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #fff;
+	cursor: pointer;
+}
+
+.discovery-artist-item:has(input:not(:checked)) {
+	background: var(--surface-muted);
+	opacity: 0.66;
+}
+
+.discovery-artist-item input {
+	width: 18px;
+	height: 18px;
+	margin: 0;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.discovery-artist-details {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+}
+
+.discovery-artist-source {
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.4;
 }
 
 .discography-artist-item {
@@ -811,11 +847,6 @@ a {
 		padding: 30px;
 	}
 
-	.navigation-card:nth-child(4),
-	.navigation-card:nth-child(5) {
-		grid-column: auto;
-	}
-
 	.album-selection-item {
 		grid-template-columns: auto 60px minmax(0, 1fr);
 	}
@@ -826,6 +857,14 @@ a {
 
 	.discography-artist-item {
 		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.discovery-artist-item {
+		grid-template-columns: auto 38px minmax(0, 1fr);
+	}
+
+	.discovery-artist-item .compact-link {
+		grid-column: 3;
 	}
 
 	.similarity-signals {

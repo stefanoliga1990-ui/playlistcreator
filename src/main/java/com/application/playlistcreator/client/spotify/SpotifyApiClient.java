@@ -104,6 +104,63 @@ public class SpotifyApiClient {
 		}
 	}
 
+	public TopArtistsPage getCurrentUserTopArtists(
+			String accessToken,
+			String timeRange,
+			int limit,
+			int offset) {
+		try {
+			log.info("Calling Spotify current user top artists endpoint. timeRange={}, limit={}, offset={}",
+					timeRange, limit, offset);
+			return restClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/me/top/artists")
+							.queryParam("time_range", timeRange)
+							.queryParam("limit", limit)
+							.queryParam("offset", offset)
+							.build())
+					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+					.retrieve()
+					.body(TopArtistsPage.class);
+		}
+		catch (RestClientResponseException ex) {
+			throw new ExternalApiException(toFailureMessage("Spotify current user top artists search", ex), ex);
+		}
+	}
+
+	public RecentlyPlayedResponse getRecentlyPlayedTracks(String accessToken, int limit) {
+		try {
+			log.info("Calling Spotify recently played endpoint. limit={}", limit);
+			return restClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/me/player/recently-played")
+							.queryParam("limit", limit)
+							.build())
+					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+					.retrieve()
+					.body(RecentlyPlayedResponse.class);
+		}
+		catch (RestClientResponseException ex) {
+			throw new ExternalApiException(toFailureMessage("Spotify recently played tracks search", ex), ex);
+		}
+	}
+
+	public SavedTracksPage getSavedTracks(String accessToken, int limit, int offset) {
+		try {
+			log.info("Calling Spotify saved tracks endpoint. limit={}, offset={}", limit, offset);
+			return restClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/me/tracks")
+							.queryParam("market", properties.market())
+							.queryParam("limit", limit)
+							.queryParam("offset", offset)
+							.build())
+					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+					.retrieve()
+					.body(SavedTracksPage.class);
+		}
+		catch (RestClientResponseException ex) {
+			throw new ExternalApiException(toFailureMessage("Spotify saved tracks search", ex), ex);
+		}
+	}
+
 	public AlbumsPage getArtistAlbums(String accessToken, String artistId, int limit, int offset) {
 		try {
 			log.info("Calling Spotify artist albums endpoint. artistId={}, limit={}, offset={}",
@@ -266,6 +323,31 @@ public class SpotifyApiClient {
 			Integer limit,
 			Integer offset,
 			String next) {
+	}
+
+	public record TopArtistsPage(
+			List<SpotifyArtist> items,
+			Integer total,
+			Integer limit,
+			Integer offset,
+			String next) {
+	}
+
+	public record RecentlyPlayedResponse(List<PlayHistory> items) {
+	}
+
+	public record PlayHistory(Track track, String played_at) {
+	}
+
+	public record SavedTracksPage(
+			List<SavedTrack> items,
+			Integer total,
+			Integer limit,
+			Integer offset,
+			String next) {
+	}
+
+	public record SavedTrack(String added_at, Track track) {
 	}
 
 	public record SimplifiedTrack(
