@@ -44,7 +44,7 @@ class SetlistServiceTest {
 
 		assertThatThrownBy(() -> service.selectProbableSongs("Test Artist"))
 				.isInstanceOf(NoRecentSetlistsException.class)
-				.hasMessage("Non sono state trovate scalette negli ultimi 6 mesi per Test Artist.");
+				.hasMessage("No setlists were found for Test Artist in the last 6 months.");
 	}
 
 	@Test
@@ -98,7 +98,7 @@ class SetlistServiceTest {
 
 		assertThatThrownBy(() -> service.selectProbableSongs("Unknown Artist"))
 				.isInstanceOf(SetlistFmArtistNotFoundException.class)
-				.hasMessage("Artista non presente su setlist.fm");
+				.hasMessage("Artist not found on setlist.fm");
 	}
 
 	private SetlistFmClient clientWithSetlists(List<SetlistFmClient.Setlist> setlists) {

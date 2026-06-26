@@ -250,14 +250,14 @@ public class SpotifyApiClient {
 				if (isTimeout(ex)) {
 					log.warn("{} timed out. No retry will be attempted.", operation, ex);
 					throw new ExternalApiUnavailableException(
-							"Spotify sta impiegando troppo tempo a rispondere. Riprova tra qualche secondo.",
+							"Spotify is taking too long to respond. Please try again in a few seconds.",
 							ex);
 				}
 				if (!isRetryableConnectionFailure(ex) || attempt == READ_MAX_ATTEMPTS) {
 					log.warn("{} failed because Spotify is temporarily unreachable. attempt={}/{}",
 							operation, attempt, READ_MAX_ATTEMPTS, ex);
 					throw new ExternalApiUnavailableException(
-							"Connessione a Spotify temporaneamente non disponibile. Riprova tra qualche secondo.",
+							"Spotify is temporarily unavailable. Please try again in a few seconds.",
 							ex);
 				}
 				log.warn("{} interrupted by a transient connection error. Retrying once in {} ms. attempt={}/{}",
@@ -275,7 +275,7 @@ public class SpotifyApiClient {
 		catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
 			throw new ExternalApiUnavailableException(
-					"Connessione a Spotify temporaneamente non disponibile. Riprova tra qualche secondo.",
+					"Spotify is temporarily unavailable. Please try again in a few seconds.",
 					cause);
 		}
 	}

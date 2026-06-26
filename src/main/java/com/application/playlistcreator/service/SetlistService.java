@@ -79,8 +79,8 @@ public class SetlistService {
 			log.warn("No valid recent setlists found. artistName={}, resolvedArtist={}, maxAgeMonths={}",
 					artistName, artist.name(), properties.maxAgeMonths());
 			throw new NoRecentSetlistsException(
-					"Non sono state trovate scalette negli ultimi " + properties.maxAgeMonths()
-							+ " mesi per " + artist.name() + ".");
+					"No setlists were found for " + artist.name() + " in the last "
+							+ properties.maxAgeMonths() + " months.");
 		}
 		List<ConcertSetlist> selectedSetlists = validSetlists.stream().limit(3).toList();
 		List<CandidateSong> recentSongs = findRecentSongs(selectedSetlists);

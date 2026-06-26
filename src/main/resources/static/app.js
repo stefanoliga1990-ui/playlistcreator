@@ -264,12 +264,12 @@ async function refreshStatus() {
 	catch (error) {
 		state.loggedIn = false;
 		renderStatus();
-		showMessage("Non riesco a verificare lo stato del login Spotify.", true);
+		showMessage("Unable to verify your Spotify login status.", true);
 	}
 }
 
 function renderStatus() {
-	els.loginStatus.textContent = state.loggedIn ? "Spotify collegato" : "Spotify non collegato";
+	els.loginStatus.textContent = state.loggedIn ? "Spotify connected" : "Spotify not connected";
 	els.loginStatus.classList.toggle("ok", state.loggedIn);
 	els.logoutButton.classList.toggle("hidden", !state.loggedIn);
 	els.loginView.classList.toggle("hidden", state.loggedIn);
@@ -308,20 +308,20 @@ function showLoginHintFromQuery() {
 		window.history.replaceState({}, "", "/");
 	}
 	if (params.get("spotifyLogin") === "error") {
-		showMessage("Login Spotify non completato. Riprova dal pulsante di login.", true);
+		showMessage("Spotify login was not completed. Please try again using the login button.", true);
 		window.history.replaceState({}, "", "/");
 	}
 }
 
 async function previewArtist(artistName) {
 	if (!artistName) {
-		showMessage("Inserisci il nome di un artista.", true);
+		showMessage("Enter an artist name.", true);
 		return;
 	}
 	setBusy(els.searchForm, true);
 	hideMessage();
 	els.results.classList.add("hidden");
-	showLoading("Ricerca scalette", `Recupero delle scalette recenti di ${artistName}...`);
+	showLoading("Searching setlists", `Loading recent setlists for ${artistName}...`);
 	try {
 		const response = await fetch(`/api/playlists/preview?artistName=${encodeURIComponent(artistName)}`);
 		const payload = await parseJsonResponse(response);
@@ -329,7 +329,7 @@ async function previewArtist(artistName) {
 		renderPreview(payload);
 	}
 	catch (error) {
-		showMessage(error.message || "Ricerca non riuscita.", error.type !== "warning");
+		showMessage(error.message || "Search failed.", error.type !== "warning");
 	}
 	finally {
 		hideLoading();
@@ -346,7 +346,7 @@ function renderPreview(preview) {
 	els.songList.replaceChildren(...preview.recentSongs.map((song, index) => {
 		const item = document.createElement("li");
 		item.className = "selectable-result-item";
-		const coverText = song.cover ? `Cover: ${song.coverArtist || "artista originale non indicato"}` : "Brano artista";
+		const coverText = song.cover ? `Cover: ${song.coverArtist || "original artist not specified"}` : "Artist track";
 		item.innerHTML = `
 			<input type="checkbox" class="track-selection-checkbox" data-index="${index}" checked aria-label="Includi ${escapeHtml(song.title)}">
 			<span class="song-index">${index + 1}</span>
@@ -364,8 +364,8 @@ function renderPreview(preview) {
 		card.className = "setlist-card";
 		card.innerHTML = `
 			<strong>${escapeHtml(formatDate(setlist.eventDate))}</strong>
-			<p>${escapeHtml(setlist.venueName || "Venue non indicata")} - ${escapeHtml(setlist.cityName || "")}</p>
-			<p>${setlist.songCount} brani - <a href="${setlist.url}" target="_blank" rel="noreferrer">Apri setlist</a></p>
+			<p>${escapeHtml(setlist.venueName || "Venue not specified")} - ${escapeHtml(setlist.cityName || "")}</p>
+			<p>${setlist.songCount} tracks - <a href="${setlist.url}" target="_blank" rel="noreferrer">Open setlist</a></p>
 		`;
 		return card;
 	}));
@@ -377,7 +377,7 @@ async function previewGenreArtists() {
 	const genre = els.genreName.value.trim();
 	const artistLimit = Number(els.genreArtistLimit.value);
 	if (!genre) {
-		showGenreMessage("Inserisci un genere musicale.", true);
+		showGenreMessage("Enter a music genre.", true);
 		return;
 	}
 	setBusy(els.genreArtistForm, true);
@@ -387,7 +387,7 @@ async function previewGenreArtists() {
 	els.genreTrackResults.classList.add("hidden");
 	state.genreArtists = null;
 	state.genreTracks = null;
-	showLoading("Ricerca artisti", `Recupero dei principali artisti del genere ${formatGenreName(genre)}...`);
+	showLoading("Searching artists", `Loading the top artists for the ${formatGenreName(genre)} genre...`);
 	try {
 		const params = new URLSearchParams({
 			genre,
@@ -400,7 +400,7 @@ async function previewGenreArtists() {
 		renderGenreArtists(payload);
 	}
 	catch (error) {
-		showGenreMessage(error.message || "Ricerca artisti non riuscita.", true);
+		showGenreMessage(error.message || "Artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -409,7 +409,7 @@ async function previewGenreArtists() {
 }
 
 function renderGenreArtists(payload) {
-	els.genreArtistTitle.textContent = `${formatGenreName(payload.genre)} - ${payload.artistCount} artisti`;
+	els.genreArtistTitle.textContent = `${formatGenreName(payload.genre)} - ${payload.artistCount} artists`;
 	els.genreArtistList.replaceChildren(...payload.artists.map((artist) => {
 		const item = document.createElement("li");
 		item.className = "selectable-result-item";
@@ -433,18 +433,18 @@ async function previewGenreTracks() {
 	const artistLimit = Number(els.genreArtistLimit.value);
 	const tracksPerArtist = Number(els.tracksPerArtist.value);
 	if (!state.genreArtists) {
-		showGenreMessage("Cerca prima gli artisti del genere.", true);
+		showGenreMessage("Search for genre artists first.", true);
 		return;
 	}
 	const selectedArtistNames = getSelectedGenreArtistNames();
 	if (!selectedArtistNames.length) {
-		showGenreMessage("Seleziona almeno un artista.", true);
+		showGenreMessage("Select at least one artist.", true);
 		return;
 	}
 	setBusy(els.genreTrackForm, true);
 	hideGenreMessage();
 	els.genreTrackResults.classList.add("hidden");
-	showLoading("Ricerca canzoni", "Recupero delle canzoni più ascoltate per gli artisti selezionati...");
+	showLoading("Searching tracks", "Loading the most popular tracks for the selected artists...");
 	try {
 		const response = await fetch("/api/genre-playlists/tracks", {
 			method: "POST",
@@ -462,7 +462,7 @@ async function previewGenreTracks() {
 		renderGenreTracks(payload);
 	}
 	catch (error) {
-		showGenreMessage(error.message || "Ricerca canzoni non riuscita.", true);
+		showGenreMessage(error.message || "Track search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -482,7 +482,7 @@ function renderGenreTracks(payload) {
 			<span class="song-index">${index + 1}</span>
 			<span>
 				<span class="song-title">${escapeHtml(track.title)}</span>
-				<span class="song-meta">${escapeHtml(track.artistName)} - top ${track.trackRank} artista #${track.artistRank}</span>
+				<span class="song-meta">${escapeHtml(track.artistName)} - artist #${track.artistRank}, top track ${track.trackRank}</span>
 			</span>
 			<span class="badge">${formatNumber(track.listeners)}</span>
 		`;
@@ -505,7 +505,7 @@ function getSelectedGenreArtistNames() {
 async function previewDiscographyArtists() {
 	const artistName = els.discographyArtistName.value.trim();
 	if (!artistName) {
-		showDiscographyMessage("Inserisci il nome di un artista.", true);
+		showDiscographyMessage("Enter an artist name.", true);
 		return;
 	}
 	setBusy(els.discographySearchForm, true);
@@ -517,7 +517,7 @@ async function previewDiscographyArtists() {
 	state.discographyArtists = null;
 	state.discographyAlbums = null;
 	state.discographyTracks = null;
-	showLoading("Ricerca artisti", `Ricerca degli artisti Spotify che contengono "${artistName}"...`);
+	showLoading("Searching artists", `Searching Spotify artists whose names contain "${artistName}"...`);
 	try {
 		const response = await fetch(`/api/discography-playlists/artists?artistName=${encodeURIComponent(artistName)}`);
 		const payload = await parseJsonResponse(response);
@@ -529,7 +529,7 @@ async function previewDiscographyArtists() {
 		renderDiscographyArtists(payload);
 	}
 	catch (error) {
-		showDiscographyMessage(error.message || "Ricerca artisti non riuscita.", true);
+		showDiscographyMessage(error.message || "Artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -538,15 +538,15 @@ async function previewDiscographyArtists() {
 }
 
 function renderDiscographyArtists(payload) {
-	els.discographyArtistTitle.textContent = `Risultati per "${payload.query}"`;
-	els.discographyArtistCount.textContent = `${payload.artistCount} artisti`;
+	els.discographyArtistTitle.textContent = `Results for "${payload.query}"`;
+	els.discographyArtistCount.textContent = `${payload.artistCount} artists`;
 	els.discographyArtistList.replaceChildren(...payload.artists.map((artist) => {
 		const button = document.createElement("button");
 		button.type = "button";
 		button.className = "discography-artist-item";
 		button.innerHTML = `
 			<span class="discography-artist-name">${escapeHtml(artist.name)}</span>
-			<span class="discography-artist-action">Seleziona</span>
+			<span class="discography-artist-action">Select</span>
 		`;
 		button.addEventListener("click", async () => {
 			await previewDiscographyAlbums(artist);
@@ -558,7 +558,7 @@ function renderDiscographyArtists(payload) {
 
 async function previewDiscographyAlbums(artist) {
 	if (!artist || !artist.id || !artist.name) {
-		showDiscographyMessage("Seleziona un artista valido.", true);
+		showDiscographyMessage("Select a valid artist.", true);
 		return;
 	}
 	hideDiscographyMessage();
@@ -568,7 +568,7 @@ async function previewDiscographyAlbums(artist) {
 	els.discographyTrackResults.classList.add("hidden");
 	state.discographyAlbums = null;
 	state.discographyTracks = null;
-	showLoading("Ricerca album", `Recupero della discografia di ${artist.name}...`);
+	showLoading("Searching albums", `Loading ${artist.name}'s discography...`);
 	try {
 		const params = new URLSearchParams({
 			artistId: artist.id,
@@ -583,7 +583,7 @@ async function previewDiscographyAlbums(artist) {
 		if (state.discographyArtists && state.discographyArtists.artistCount > 1) {
 			els.discographyArtistResults.classList.remove("hidden");
 		}
-		showDiscographyMessage(error.message || "Ricerca album non riuscita.", true);
+		showDiscographyMessage(error.message || "Album search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -601,7 +601,7 @@ function renderDiscographyAlbums(payload) {
 			<input type="checkbox" class="discography-album-checkbox" value="${escapeHtml(album.id)}" checked>
 			<span class="album-year">${album.releaseYear}</span>
 			<span class="album-name">${escapeHtml(album.name)}</span>
-			<span class="album-track-count">${album.totalTracks} brani</span>
+			<span class="album-track-count">${album.totalTracks} tracks</span>
 		`;
 		return item;
 	}));
@@ -609,26 +609,26 @@ function renderDiscographyAlbums(payload) {
 	els.discographyTrackForm.classList.remove("hidden");
 	if (payload.filteredAlbumCount > 0) {
 		showDiscographyMessage(
-			`${payload.filteredAlbumCount} album live, raccolte o edizioni duplicate sono stati esclusi automaticamente.`,
+			`${payload.filteredAlbumCount} live albums, compilations, or duplicate editions were automatically excluded.`,
 			false);
 	}
 }
 
 async function previewDiscographyTracks() {
 	if (!state.discographyAlbums) {
-		showDiscographyMessage("Cerca prima gli album dell'artista.", true);
+		showDiscographyMessage("Search for the artist's albums first.", true);
 		return;
 	}
 	const includedAlbumIds = getSelectedDiscographyAlbumIds();
 	if (includedAlbumIds.length === 0) {
-		showDiscographyMessage("Seleziona almeno un album.", true);
+		showDiscographyMessage("Select at least one album.", true);
 		return;
 	}
 	const tracksPerAlbum = Number(els.discographyTracksPerAlbum.value);
 	setBusy(els.discographyTrackForm, true);
 	hideDiscographyMessage();
 	els.discographyTrackResults.classList.add("hidden");
-	showLoading("Creazione lista di canzoni", "Analisi dei brani più ascoltati per ogni album selezionato...");
+	showLoading("Building track list", "Analyzing the most popular tracks from each selected album...");
 	try {
 		const response = await fetch("/api/discography-playlists/tracks", {
 			method: "POST",
@@ -645,7 +645,7 @@ async function previewDiscographyTracks() {
 		renderDiscographyTracks(payload);
 	}
 	catch (error) {
-		showDiscographyMessage(error.message || "Creazione lista di canzoni non riuscita.", true);
+		showDiscographyMessage(error.message || "Unable to build the track list.", true);
 	}
 	finally {
 		hideLoading();
@@ -670,8 +670,8 @@ function renderDiscographyTracks(payload) {
 			item.className = "selectable-result-item";
 			const currentIndex = trackIndex++;
 			const rankingText = track.rankingSource === "LAST_FM"
-				? `${formatNumber(track.lastFmPlaycount)} ascolti Last.fm`
-				: "ordine originale dell'album";
+				? `${formatNumber(track.lastFmPlaycount)} Last.fm plays`
+				: "original album order";
 			item.innerHTML = `
 				<input type="checkbox" class="track-selection-checkbox" data-index="${currentIndex}" checked aria-label="Includi ${escapeHtml(track.title)}">
 				<span class="song-index">${track.selectedRank}</span>
@@ -701,7 +701,7 @@ async function previewTopTracks() {
 	hideTopTracksMessage();
 	els.topTracksResults.classList.add("hidden");
 	state.topTracks = null;
-	showLoading("Ricerca brani preferiti", `Recupero dei tuoi Top ${trackLimit} brani Spotify...`);
+	showLoading("Searching your top tracks", `Loading your top ${trackLimit} Spotify tracks...`);
 	try {
 		const params = new URLSearchParams({
 			trackLimit: String(trackLimit),
@@ -716,7 +716,7 @@ async function previewTopTracks() {
 		}
 	}
 	catch (error) {
-		showTopTracksMessage(error.message || "Ricerca dei brani preferiti non riuscita.", true);
+		showTopTracksMessage(error.message || "Top tracks search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -750,7 +750,7 @@ function renderTopTracks(payload) {
 async function previewSimilarSourceArtists() {
 	const artistName = els.similarArtistsSourceName.value.trim();
 	if (!artistName) {
-		showSimilarArtistsMessage("Inserisci il nome di un artista.", true);
+		showSimilarArtistsMessage("Enter an artist name.", true);
 		return;
 	}
 	setBusy(els.similarArtistsSearchForm, true);
@@ -763,8 +763,8 @@ async function previewSimilarSourceArtists() {
 	state.similarArtists = null;
 	state.similarArtistTracks = null;
 	showLoading(
-		"Ricerca artisti",
-		`Ricerca degli artisti Spotify che contengono "${artistName}"...`);
+		"Searching artists",
+		`Searching Spotify artists whose names contain "${artistName}"...`);
 	try {
 		const response = await fetch(
 			`/api/similar-artists-playlists/source-artists?artistName=${encodeURIComponent(artistName)}`);
@@ -777,7 +777,7 @@ async function previewSimilarSourceArtists() {
 		renderSimilarSourceArtists(payload);
 	}
 	catch (error) {
-		showSimilarArtistsMessage(error.message || "Ricerca artisti non riuscita.", true);
+		showSimilarArtistsMessage(error.message || "Artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -786,15 +786,15 @@ async function previewSimilarSourceArtists() {
 }
 
 function renderSimilarSourceArtists(payload) {
-	els.similarSourceArtistTitle.textContent = `Risultati per "${payload.query}"`;
-	els.similarSourceArtistCount.textContent = `${payload.artistCount} artisti`;
+	els.similarSourceArtistTitle.textContent = `Results for "${payload.query}"`;
+	els.similarSourceArtistCount.textContent = `${payload.artistCount} artists`;
 	els.similarSourceArtistList.replaceChildren(...payload.artists.map((artist) => {
 		const button = document.createElement("button");
 		button.type = "button";
 		button.className = "discography-artist-item";
 		button.innerHTML = `
 			<span class="discography-artist-name">${escapeHtml(artist.name)}</span>
-			<span class="discography-artist-action">Seleziona</span>
+			<span class="discography-artist-action">Select</span>
 		`;
 		button.addEventListener("click", async () => {
 			await loadSimilarArtists(artist);
@@ -806,7 +806,7 @@ function renderSimilarSourceArtists(payload) {
 
 async function loadSimilarArtists(artist) {
 	if (!artist || !artist.name) {
-		showSimilarArtistsMessage("Seleziona un artista valido.", true);
+		showSimilarArtistsMessage("Select a valid artist.", true);
 		return;
 	}
 	hideSimilarArtistsMessage();
@@ -817,8 +817,8 @@ async function loadSimilarArtists(artist) {
 	state.similarArtists = null;
 	state.similarArtistTracks = null;
 	showLoading(
-		"Ricerca artisti simili",
-		`Analisi della similarita, dei tag e delle relazioni reciproche per ${artist.name}...`);
+		"Searching similar artists",
+		`Analyzing similarity, tags, and reciprocal relationships for ${artist.name}...`);
 	try {
 		const response = await fetch(
 			`/api/similar-artists-playlists/artists?artistName=${encodeURIComponent(artist.name)}`);
@@ -833,7 +833,7 @@ async function loadSimilarArtists(artist) {
 		if (state.similarSourceArtists && state.similarSourceArtists.artistCount > 1) {
 			els.similarSourceArtistResults.classList.remove("hidden");
 		}
-		showSimilarArtistsMessage(error.message || "Ricerca degli artisti simili non riuscita.", true);
+		showSimilarArtistsMessage(error.message || "Similar artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -842,14 +842,14 @@ async function loadSimilarArtists(artist) {
 
 function renderSimilarArtists(payload) {
 	els.similarArtistsSourceName.value = payload.sourceArtistName;
-	els.similarArtistsTitle.textContent = `Artisti simili a ${payload.sourceArtistName}`;
-	els.similarArtistsCount.textContent = `${payload.artistCount} artisti`;
+	els.similarArtistsTitle.textContent = `Artists similar to ${payload.sourceArtistName}`;
+	els.similarArtistsCount.textContent = `${payload.artistCount} artists`;
 	els.similarArtistsList.replaceChildren(...payload.artists.map((artist) => {
 		const item = document.createElement("label");
 		item.className = "similar-artist-selection-item";
 		const tags = Array.isArray(artist.topTags) && artist.topTags.length
 			? artist.topTags.join(", ")
-			: "Tag non disponibili";
+			: "Tags unavailable";
 		item.innerHTML = `
 			<input type="checkbox" class="similar-artist-checkbox" value="${escapeHtml(artist.name)}" checked>
 			<span class="song-index">${artist.rank}</span>
@@ -872,12 +872,12 @@ function renderSimilarArtists(payload) {
 
 async function previewSimilarArtistTracks() {
 	if (!state.similarArtists) {
-		showSimilarArtistsMessage("Cerca prima gli artisti simili.", true);
+		showSimilarArtistsMessage("Search for similar artists first.", true);
 		return;
 	}
 	const selectedArtistNames = getSelectedSimilarArtistNames();
 	if (!selectedArtistNames.length) {
-		showSimilarArtistsMessage("Seleziona almeno un artista.", true);
+		showSimilarArtistsMessage("Select at least one artist.", true);
 		return;
 	}
 	const tracksPerArtist = Number(els.similarArtistsTracksPerArtist.value);
@@ -886,8 +886,8 @@ async function previewSimilarArtistTracks() {
 	els.similarArtistsTrackResults.classList.add("hidden");
 	state.similarArtistTracks = null;
 	showLoading(
-		"Ricerca canzoni",
-		`Recupero delle top ${tracksPerArtist} canzoni per ${selectedArtistNames.length} artisti...`);
+		"Searching tracks",
+		`Loading the top ${tracksPerArtist} tracks for ${selectedArtistNames.length} artists...`);
 	try {
 		const response = await fetch("/api/similar-artists-playlists/tracks", {
 			method: "POST",
@@ -906,7 +906,7 @@ async function previewSimilarArtistTracks() {
 		}
 	}
 	catch (error) {
-		showSimilarArtistsMessage(error.message || "Ricerca delle canzoni non riuscita.", true);
+		showSimilarArtistsMessage(error.message || "Track search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -915,7 +915,7 @@ async function previewSimilarArtistTracks() {
 }
 
 function renderSimilarArtistTracks(payload) {
-	els.similarArtistsTrackTitle.textContent = `${payload.sourceArtistName} - Artisti simili`;
+	els.similarArtistsTrackTitle.textContent = `${payload.sourceArtistName} - Similar Artists`;
 	els.similarArtistsSelectedCount.textContent = payload.artistCount;
 	els.similarArtistsTrackCount.textContent = payload.trackCount;
 	els.similarArtistsTrackList.replaceChildren(...payload.tracks.map((track, index) => {
@@ -928,7 +928,7 @@ function renderSimilarArtistTracks(payload) {
 				<span class="song-title">${escapeHtml(track.title)}</span>
 				<span class="song-meta">${escapeHtml(track.artistName)} - top ${track.trackRank}</span>
 			</span>
-			<span class="badge">${formatNumber(track.listeners)} ascoltatori</span>
+			<span class="badge">${formatNumber(track.listeners)} listeners</span>
 		`;
 		return item;
 	}));
@@ -950,7 +950,7 @@ async function previewDiscoverTopArtists() {
 	state.discoverSimilarArtists = null;
 	state.discoverSelectedSimilarArtists = null;
 	state.discoverTracks = null;
-	showLoading("I tuoi artisti preferiti", "Recupero dei top artisti Spotify degli ultimi 6 mesi...");
+	showLoading("Your top artists", "Loading your top Spotify artists from the last 6 months...");
 	try {
 		const response = await fetch("/api/discover-new-music/top-artists");
 		const payload = await parseJsonResponse(response);
@@ -961,7 +961,7 @@ async function previewDiscoverTopArtists() {
 		}
 	}
 	catch (error) {
-		showDiscoverMessage(error.message || "Ricerca dei top artisti non riuscita.", true);
+		showDiscoverMessage(error.message || "Top artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -969,7 +969,7 @@ async function previewDiscoverTopArtists() {
 }
 
 function renderDiscoverTopArtists(payload) {
-	els.discoverTopArtistsCount.textContent = `${payload.artistCount} artisti`;
+	els.discoverTopArtistsCount.textContent = `${payload.artistCount} artists`;
 	els.discoverTopArtistsList.replaceChildren(...payload.artists.map((artist, index) => {
 		const item = document.createElement("label");
 		item.className = "discovery-artist-item";
@@ -978,7 +978,7 @@ function renderDiscoverTopArtists(payload) {
 			<span class="song-index">${artist.rank}</span>
 			<span class="discovery-artist-details">
 				<span class="song-title">${escapeHtml(artist.name)}</span>
-				<span class="discovery-artist-source">Top Spotify degli ultimi 6 mesi</span>
+				<span class="discovery-artist-source">Spotify top artists from the last 6 months</span>
 			</span>
 			${artist.spotifyUrl ? `<a class="compact-link" href="${artist.spotifyUrl}" target="_blank" rel="noreferrer">Spotify</a>` : ""}
 		`;
@@ -990,7 +990,7 @@ function renderDiscoverTopArtists(payload) {
 async function previewDiscoverSimilarArtists() {
 	const selectedArtists = getSelectedDiscoverTopArtists();
 	if (!selectedArtists.length) {
-		showDiscoverMessage("Seleziona almeno un artista.", true);
+		showDiscoverMessage("Select at least one artist.", true);
 		return;
 	}
 	hideDiscoverMessage();
@@ -1001,8 +1001,8 @@ async function previewDiscoverSimilarArtists() {
 	state.discoverTracks = null;
 	setBusy(els.discoverTopArtistsResults, true);
 	showLoading(
-		"Ricerca artisti simili",
-		`Recupero dei suggerimenti Last.fm per ${selectedArtists.length} artisti...`);
+		"Searching similar artists",
+		`Loading Last.fm suggestions for ${selectedArtists.length} artists...`);
 	try {
 		const response = await fetch("/api/discover-new-music/similar-artists", {
 			method: "POST",
@@ -1018,7 +1018,7 @@ async function previewDiscoverSimilarArtists() {
 		}
 	}
 	catch (error) {
-		showDiscoverMessage(error.message || "Ricerca degli artisti simili non riuscita.", true);
+		showDiscoverMessage(error.message || "Similar artist search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1027,7 +1027,7 @@ async function previewDiscoverSimilarArtists() {
 }
 
 function renderDiscoverSimilarArtists(payload) {
-	els.discoverSimilarCount.textContent = `${payload.artistCount} artisti`;
+	els.discoverSimilarCount.textContent = `${payload.artistCount} artists`;
 	els.discoverSimilarList.replaceChildren(...payload.artists.map((artist, index) => {
 		const item = document.createElement("label");
 		item.className = "discovery-artist-item";
@@ -1052,11 +1052,11 @@ async function previewDiscoverTracks() {
 	const sourceArtists = state.discoverSourceArtists || getSelectedDiscoverTopArtists();
 	const selectedSimilarArtists = getSelectedDiscoverSimilarArtists();
 	if (!sourceArtists.length) {
-		showDiscoverMessage("Seleziona almeno un artista di partenza.", true);
+		showDiscoverMessage("Select at least one source artist.", true);
 		return;
 	}
 	if (!selectedSimilarArtists.length) {
-		showDiscoverMessage("Seleziona almeno un artista simile.", true);
+		showDiscoverMessage("Select at least one similar artist.", true);
 		return;
 	}
 	hideDiscoverMessage();
@@ -1064,8 +1064,8 @@ async function previewDiscoverTracks() {
 	state.discoverTracks = null;
 	setBusy(els.discoverSimilarResults, true);
 	showLoading(
-		"Ricerca musica nuova",
-		"Analisi di top brani, ascolti recenti e libreria Spotify. Questa operazione puo richiedere qualche minuto...");
+		"Searching for new music",
+		"Analyzing top tracks, recent plays, and your Spotify library. This may take a few minutes...");
 	try {
 		const response = await fetch("/api/discover-new-music/tracks", {
 			method: "POST",
@@ -1081,7 +1081,7 @@ async function previewDiscoverTracks() {
 		}
 	}
 	catch (error) {
-		showDiscoverMessage(error.message || "Ricerca della musica nuova non riuscita.", true);
+		showDiscoverMessage(error.message || "New music search failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1096,8 +1096,8 @@ function renderDiscoverTracks(payload) {
 		const item = document.createElement("li");
 		item.className = "selectable-result-item";
 		const discoveryReason = track.knownArtist
-			? "Brano nuovo di un artista gia presente nei tuoi ascolti"
-			: `Nuovo artista, simile a ${Array.isArray(track.basedOnArtists) ? track.basedOnArtists.join(", ") : ""}`;
+			? "New track by an artist already present in your listening history"
+			: `New artist, similar to ${Array.isArray(track.basedOnArtists) ? track.basedOnArtists.join(", ") : ""}`;
 		item.innerHTML = `
 			<input type="checkbox" class="track-selection-checkbox" data-index="${index}" checked aria-label="Includi ${escapeHtml(track.title)}">
 			<span class="song-index">${index + 1}</span>
@@ -1147,11 +1147,11 @@ function flattenDiscographyTracks() {
 
 function openSetlistCreateDialog() {
 	if (!state.preview) {
-		showMessage("Cerca prima un artista.", true);
+		showMessage("Search for an artist first.", true);
 		return;
 	}
 	if (!getSelectedSetlistTracks().length) {
-		showMessage("Seleziona almeno un brano.", true);
+		showMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "setlist";
@@ -1162,11 +1162,11 @@ function openSetlistCreateDialog() {
 
 function openGenreCreateDialog() {
 	if (!state.genreTracks) {
-		showGenreMessage("Cerca prima le canzoni del genere.", true);
+		showGenreMessage("Search for genre tracks first.", true);
 		return;
 	}
 	if (!getSelectedGenreTracks().length) {
-		showGenreMessage("Seleziona almeno un brano.", true);
+		showGenreMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "genre";
@@ -1177,15 +1177,15 @@ function openGenreCreateDialog() {
 
 function openDiscographyCreateDialog() {
 	if (!state.discographyTracks) {
-		showDiscographyMessage("Crea prima la lista di canzoni.", true);
+		showDiscographyMessage("Build the track list first.", true);
 		return;
 	}
 	if (!getSelectedDiscographyTracks().length) {
-		showDiscographyMessage("Seleziona almeno un brano.", true);
+		showDiscographyMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "discography";
-	els.playlistName.value = `${state.discographyTracks.artistName} - Discografia essenziale`;
+	els.playlistName.value = `${state.discographyTracks.artistName} - Essential Discography`;
 	els.playlistDescription.value =
 		`Playlist generated by playlistcreator from the essential discography of ${state.discographyTracks.artistName}`;
 	openCreateDialog();
@@ -1193,31 +1193,31 @@ function openDiscographyCreateDialog() {
 
 function openTopTracksCreateDialog() {
 	if (!state.topTracks) {
-		showTopTracksMessage("Cerca prima i tuoi brani preferiti.", true);
+		showTopTracksMessage("Search for your top tracks first.", true);
 		return;
 	}
 	if (!getSelectedTopTracks().length) {
-		showTopTracksMessage("Seleziona almeno un brano.", true);
+		showTopTracksMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "topTracks";
 	els.playlistName.value =
-		`I miei Top ${state.topTracks.availableTrackCount} - ${formatPeriod(state.topTracks.months)}`;
+		`My Top ${state.topTracks.availableTrackCount} - ${formatPeriod(state.topTracks.months)}`;
 	els.playlistDescription.value = "Playlist generated by playlistcreator from my Spotify top tracks";
 	openCreateDialog();
 }
 
 function openSimilarArtistsCreateDialog() {
 	if (!state.similarArtistTracks) {
-		showSimilarArtistsMessage("Cerca prima le canzoni degli artisti simili.", true);
+		showSimilarArtistsMessage("Search for similar artist tracks first.", true);
 		return;
 	}
 	if (!getSelectedSimilarArtistTracks().length) {
-		showSimilarArtistsMessage("Seleziona almeno un brano.", true);
+		showSimilarArtistsMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "similarArtists";
-	els.playlistName.value = `${state.similarArtistTracks.sourceArtistName} - Artisti simili`;
+	els.playlistName.value = `${state.similarArtistTracks.sourceArtistName} - Similar Artists`;
 	els.playlistDescription.value =
 		`Playlist generated by playlistcreator from artists similar to ${state.similarArtistTracks.sourceArtistName}`;
 	openCreateDialog();
@@ -1225,15 +1225,15 @@ function openSimilarArtistsCreateDialog() {
 
 function openDiscoverCreateDialog() {
 	if (!state.discoverTracks) {
-		showDiscoverMessage("Cerca prima la musica nuova.", true);
+		showDiscoverMessage("Search for new music first.", true);
 		return;
 	}
 	if (!getSelectedDiscoverTracks().length) {
-		showDiscoverMessage("Seleziona almeno un brano.", true);
+		showDiscoverMessage("Select at least one track.", true);
 		return;
 	}
 	state.createMode = "discover";
-	els.playlistName.value = "Scopri nuova musica";
+	els.playlistName.value = "Discover New Music";
 	els.playlistDescription.value = DEFAULT_DESCRIPTION;
 	openCreateDialog();
 }
@@ -1325,7 +1325,7 @@ async function logoutSpotify() {
 		window.history.replaceState({}, "", "/");
 	}
 	catch (error) {
-		showMessage("Logout non riuscito. Riprova.", true);
+		showMessage("Logout failed. Please try again.", true);
 	}
 	finally {
 		setBusy(els.logoutButton.parentElement, false);
@@ -1387,7 +1387,7 @@ function resetDiscographySection() {
 	els.discographyTrackForm.classList.add("hidden");
 	els.discographyTrackResults.classList.add("hidden");
 	els.discographyArtistTitle.textContent = "";
-	els.discographyArtistCount.textContent = "0 artisti";
+	els.discographyArtistCount.textContent = "0 artists";
 	els.discographyArtistList.replaceChildren();
 	els.discographyAlbumTitle.textContent = "";
 	els.discographyAlbumCount.textContent = "0 album";
@@ -1423,10 +1423,10 @@ function resetSimilarArtistsSection() {
 	els.similarArtistsTrackForm.classList.add("hidden");
 	els.similarArtistsTrackResults.classList.add("hidden");
 	els.similarSourceArtistTitle.textContent = "";
-	els.similarSourceArtistCount.textContent = "0 artisti";
+	els.similarSourceArtistCount.textContent = "0 artists";
 	els.similarSourceArtistList.replaceChildren();
 	els.similarArtistsTitle.textContent = "";
-	els.similarArtistsCount.textContent = "0 artisti";
+	els.similarArtistsCount.textContent = "0 artists";
 	els.similarArtistsList.replaceChildren();
 	els.similarArtistsTrackTitle.textContent = "";
 	els.similarArtistsSelectedCount.textContent = "0";
@@ -1444,8 +1444,8 @@ function resetDiscoverSection() {
 	els.discoverTopArtistsResults.classList.add("hidden");
 	els.discoverSimilarResults.classList.add("hidden");
 	els.discoverTrackResults.classList.add("hidden");
-	els.discoverTopArtistsCount.textContent = "0 artisti";
-	els.discoverSimilarCount.textContent = "0 artisti";
+	els.discoverTopArtistsCount.textContent = "0 artists";
+	els.discoverSimilarCount.textContent = "0 artists";
 	els.discoverTrackArtistCount.textContent = "0";
 	els.discoverTrackCount.textContent = "0";
 	els.discoverTopArtistsList.replaceChildren();
@@ -1479,18 +1479,18 @@ async function createPlaylist() {
 
 async function createSetlistPlaylist() {
 	if (!state.preview) {
-		showMessage("Cerca prima un artista.", true);
+		showMessage("Search for an artist first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedSetlistTracks();
 	if (!selectedTracks.length) {
-		showMessage("Seleziona almeno un brano.", true);
+		showMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/playlists/generate", {
 			method: "POST",
@@ -1516,7 +1516,7 @@ async function createSetlistPlaylist() {
 			payload.excludedTracks);
 	}
 	catch (error) {
-		showMessage(error.message || "Creazione playlist non riuscita.", true);
+		showMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1526,18 +1526,18 @@ async function createSetlistPlaylist() {
 
 async function createGenrePlaylist() {
 	if (!state.genreTracks) {
-		showGenreMessage("Cerca prima le canzoni del genere.", true);
+		showGenreMessage("Search for genre tracks first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedGenreTracks();
 	if (!selectedTracks.length) {
-		showGenreMessage("Seleziona almeno un brano.", true);
+		showGenreMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/genre-playlists/generate", {
 			method: "POST",
@@ -1566,7 +1566,7 @@ async function createGenrePlaylist() {
 			payload.excludedTracks);
 	}
 	catch (error) {
-		showGenreMessage(error.message || "Creazione playlist non riuscita.", true);
+		showGenreMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1576,18 +1576,18 @@ async function createGenrePlaylist() {
 
 async function createDiscographyPlaylist() {
 	if (!state.discographyTracks || !state.discographyAlbums) {
-		showDiscographyMessage("Crea prima la lista di canzoni.", true);
+		showDiscographyMessage("Build the track list first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedDiscographyTracks();
 	if (!selectedTracks.length) {
-		showDiscographyMessage("Seleziona almeno un brano.", true);
+		showDiscographyMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/discography-playlists/generate", {
 			method: "POST",
@@ -1616,7 +1616,7 @@ async function createDiscographyPlaylist() {
 			payload.excludedTracks);
 	}
 	catch (error) {
-		showDiscographyMessage(error.message || "Creazione playlist non riuscita.", true);
+		showDiscographyMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1626,18 +1626,18 @@ async function createDiscographyPlaylist() {
 
 async function createTopTracksPlaylist() {
 	if (!state.topTracks) {
-		showTopTracksMessage("Cerca prima i tuoi brani preferiti.", true);
+		showTopTracksMessage("Search for your top tracks first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedTopTracks();
 	if (!selectedTracks.length) {
-		showTopTracksMessage("Seleziona almeno un brano.", true);
+		showTopTracksMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/top-tracks-playlists/generate", {
 			method: "POST",
@@ -1664,7 +1664,7 @@ async function createTopTracksPlaylist() {
 			payload.excludedTracks);
 	}
 	catch (error) {
-		showTopTracksMessage(error.message || "Creazione playlist non riuscita.", true);
+		showTopTracksMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1674,18 +1674,18 @@ async function createTopTracksPlaylist() {
 
 async function createSimilarArtistsPlaylist() {
 	if (!state.similarArtists || !state.similarArtistTracks) {
-		showSimilarArtistsMessage("Cerca prima le canzoni degli artisti simili.", true);
+		showSimilarArtistsMessage("Search for similar artist tracks first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedSimilarArtistTracks();
 	if (!selectedTracks.length) {
-		showSimilarArtistsMessage("Seleziona almeno un brano.", true);
+		showSimilarArtistsMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/similar-artists-playlists/generate", {
 			method: "POST",
@@ -1713,7 +1713,7 @@ async function createSimilarArtistsPlaylist() {
 			payload.excludedTracks);
 	}
 	catch (error) {
-		showSimilarArtistsMessage(error.message || "Creazione playlist non riuscita.", true);
+		showSimilarArtistsMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1723,18 +1723,18 @@ async function createSimilarArtistsPlaylist() {
 
 async function createDiscoverPlaylist() {
 	if (!state.discoverTracks || !state.discoverTopArtists || !state.discoverSimilarArtists) {
-		showDiscoverMessage("Cerca prima la musica nuova.", true);
+		showDiscoverMessage("Search for new music first.", true);
 		closeCreateDialog();
 		return;
 	}
 	const selectedTracks = getSelectedDiscoverTracks();
 	if (!selectedTracks.length) {
-		showDiscoverMessage("Seleziona almeno un brano.", true);
+		showDiscoverMessage("Select at least one track.", true);
 		closeCreateDialog();
 		return;
 	}
 	setBusy(els.createForm, true);
-	showLoading("Creazione playlist", `Creazione di "${els.playlistName.value.trim() || "playlist"}" in corso...`);
+	showLoading("Creating playlist", `Creating "${els.playlistName.value.trim() || "playlist"}"...`);
 	try {
 		const response = await fetch("/api/discover-new-music/generate", {
 			method: "POST",
@@ -1761,7 +1761,7 @@ async function createDiscoverPlaylist() {
 			[]);
 	}
 	catch (error) {
-		showDiscoverMessage(error.message || "Creazione playlist non riuscita.", true);
+		showDiscoverMessage(error.message || "Playlist creation failed.", true);
 	}
 	finally {
 		hideLoading();
@@ -1775,7 +1775,7 @@ function showPlaylistCreated(container, playlistName, playlistUrl, excludedTrack
 	container.classList.add("success");
 	container.classList.remove("hidden");
 	container.replaceChildren(
-			document.createTextNode(`Playlist ${playlistName || "Spotify"} creata correttamente`));
+			document.createTextNode(`Playlist ${playlistName || "Spotify"} created successfully`));
 	if (playlistUrl) {
 		const link = document.createElement("a");
 		link.className = "playlist-link";
@@ -1790,7 +1790,7 @@ function showPlaylistCreated(container, playlistName, playlistUrl, excludedTrack
 		const warning = document.createElement("section");
 		warning.className = "message playlist-excluded-warning";
 		const title = document.createElement("p");
-		title.textContent = "I seguenti brani non sono stati aggiunti alla playlist:";
+		title.textContent = "The following tracks were not added to the playlist:";
 		const list = document.createElement("ul");
 		list.replaceChildren(...excluded.map((track) => {
 			const item = document.createElement("li");
@@ -1799,7 +1799,7 @@ function showPlaylistCreated(container, playlistName, playlistUrl, excludedTrack
 		}));
 		const reason = document.createElement("p");
 		reason.className = "excluded-tracks-reason";
-		reason.textContent = "Nessuna corrispondenza affidabile trovata.";
+		reason.textContent = "No reliable match was found.";
 		warning.append(title, list, reason);
 		container.insertAdjacentElement("afterend", warning);
 	}
@@ -1921,13 +1921,13 @@ function hideLoading() {
 
 function formatDate(value) {
 	if (!value) {
-		return "Data non indicata";
+		return "Date unavailable";
 	}
-	return new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
+	return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
 }
 
 function formatNumber(value) {
-	return new Intl.NumberFormat("it-IT").format(Number(value || 0));
+	return new Intl.NumberFormat("en-US").format(Number(value || 0));
 }
 
 function formatGenreName(value) {
@@ -1940,7 +1940,7 @@ function formatGenreName(value) {
 }
 
 function formatPeriod(months) {
-	return Number(months) === 1 ? "Ultimo mese" : `Ultimi ${months} mesi`;
+	return Number(months) === 1 ? "Last month" : `Last ${months} months`;
 }
 
 function formatPercent(value) {

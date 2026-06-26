@@ -50,7 +50,7 @@ class DiscoverNewMusicServiceTest {
 
 		assertThat(result.artists()).extracting(artist -> artist.name())
 				.containsExactly("Source Artist");
-		assertThat(result.warning()).contains("solo 1 dei 10 artisti");
+		assertThat(result.warning()).contains("only 1 of the 10 requested artists");
 	}
 
 	@Test
@@ -136,7 +136,7 @@ class DiscoverNewMusicServiceTest {
 		assertThat(result.tracks()).extracting(track -> track.id())
 				.containsExactly("new-track-1", "new-track-2", "new-track-3")
 				.doesNotContain("known-track");
-		assertThat(result.warning()).contains("Spotify non espone la cronologia completa");
+		assertThat(result.warning()).contains("Spotify does not expose your complete listening history");
 	}
 
 	private DiscoverNewMusicService service(

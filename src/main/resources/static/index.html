@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Playlist Creator</title>
-	<link rel="stylesheet" href="/styles.css?v=discover-new-music-1">
+	<link rel="stylesheet" href="/styles.css?v=english-ui-1">
 </head>
 <body>
 	<main class="app-shell">
@@ -14,15 +14,15 @@
 				<h1>Playlist Creator</h1>
 			</div>
 			<div class="topbar-actions">
-				<div id="loginStatus" class="status-pill">Controllo login...</div>
+				<div id="loginStatus" class="status-pill">Checking login...</div>
 				<button id="logoutButton" type="button" class="secondary-button compact-button hidden">Logout</button>
 			</div>
 		</header>
 
 		<section id="loginView" class="panel auth-panel hidden">
 			<div class="auth-copy">
-				<h2>Collega Spotify</h2>
-				<p>Accedi al tuo account Spotify per creare playlist a partire da scalette recenti o classifiche Last.fm.</p>
+				<h2>Connect Spotify</h2>
+				<p>Sign in to Spotify to create playlists from recent setlists, Last.fm charts, and your listening history.</p>
 			</div>
 			<a class="primary-button" href="/spotify/login">Login Spotify</a>
 		</section>
@@ -31,49 +31,49 @@
 			<div class="home-grid">
 				<button id="openSetlistView" type="button" class="navigation-card">
 					<span class="eyebrow">setlist.fm + Spotify</span>
-					<span class="navigation-card-title">Scalette recenti</span>
+					<span class="navigation-card-title">Recent setlists</span>
 					<span class="navigation-card-description">
-						Crea una playlist con i brani suonati nei concerti più recenti di un artista.
+						Create a playlist with tracks played at an artist's most recent concerts.
 					</span>
 				</button>
 
 				<button id="openGenreView" type="button" class="navigation-card">
 					<span class="eyebrow">Last.fm + Spotify</span>
-					<span class="navigation-card-title">Genere musicale</span>
+					<span class="navigation-card-title">Music genre</span>
 					<span class="navigation-card-description">
-						Crea una playlist con i brani più ascoltati degli artisti maggiormente associati a un genere.
+						Create a playlist with the most popular tracks by artists strongly associated with a genre.
 					</span>
 				</button>
 
 				<button id="openDiscographyView" type="button" class="navigation-card">
 					<span class="eyebrow">Spotify + Last.fm</span>
-					<span class="navigation-card-title">Discografia essenziale</span>
+					<span class="navigation-card-title">Essential discography</span>
 					<span class="navigation-card-description">
-						Crea una playlist che ripercorre in ordine cronologico gli album di un artista attraverso i suoi brani più ascoltati.
+						Create a chronological journey through an artist's albums using their most popular tracks.
 					</span>
 				</button>
 
 				<button id="openTopTracksView" type="button" class="navigation-card">
 					<span class="eyebrow">Spotify</span>
-					<span class="navigation-card-title">I miei brani preferiti</span>
+					<span class="navigation-card-title">My top tracks</span>
 					<span class="navigation-card-description">
-						Crea una playlist con i tuoi brani più ascoltati in un periodo selezionato.
+						Create a playlist with your most played tracks over a selected period.
 					</span>
 				</button>
 
 				<button id="openSimilarArtistsView" type="button" class="navigation-card">
 					<span class="eyebrow">Last.fm + Spotify</span>
-					<span class="navigation-card-title">Artisti simili</span>
+					<span class="navigation-card-title">Similar artists</span>
 					<span class="navigation-card-description">
-						Crea una playlist con i brani più ascoltati degli artisti maggiormente affini a un artista scelto.
+						Create a playlist with popular tracks by artists similar to an artist you choose.
 					</span>
 				</button>
 
 				<button id="openDiscoverView" type="button" class="navigation-card">
 					<span class="eyebrow">Spotify + Last.fm</span>
-					<span class="navigation-card-title">Scopri nuova musica</span>
+					<span class="navigation-card-title">Discover new music</span>
 					<span class="navigation-card-description">
-						Crea una playlist con brani nuovi ispirati agli artisti che hai ascoltato di piu negli ultimi mesi.
+						Create a playlist with new music inspired by the artists you have listened to most recently.
 					</span>
 				</button>
 			</div>
@@ -84,16 +84,16 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">setlist.fm</p>
-						<h2>Crea playlist da scalette recenti</h2>
+						<h2>Create a playlist from recent setlists</h2>
 					</div>
-					<button id="setlistHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="setlistHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<form id="searchForm" class="search-form">
-					<label for="artistName">Artista</label>
+					<label for="artistName">Artist</label>
 					<div class="search-row">
-						<input id="artistName" name="artistName" type="search" placeholder="Es. Nu Genea" autocomplete="off" required>
-						<button type="submit" class="primary-button">Cerca</button>
+						<input id="artistName" name="artistName" type="search" placeholder="E.g. Nu Genea" autocomplete="off" required>
+						<button type="submit" class="primary-button">Search</button>
 					</div>
 				</form>
 
@@ -102,34 +102,34 @@
 				<section id="results" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Preview scaletta</p>
+							<p class="eyebrow">Setlist preview</p>
 							<h2 id="artistTitle"></h2>
 						</div>
-						<button id="openCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
 						<div>
-							<span class="metric-label">Brani</span>
+							<span class="metric-label">Tracks</span>
 							<strong id="songCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Scalette usate</span>
+							<span class="metric-label">Setlists used</span>
 							<strong id="setlistCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Origine</span>
+							<span class="metric-label">Source</span>
 							<a id="artistLink" href="#" target="_blank" rel="noreferrer">setlist.fm</a>
 						</div>
 					</div>
 
 					<div class="content-grid">
 						<section>
-							<h3>Brani recenti</h3>
+							<h3>Recent tracks</h3>
 							<ol id="songList" class="song-list"></ol>
 						</section>
 						<aside>
-							<h3>Scalette considerate</h3>
+							<h3>Setlists considered</h3>
 							<div id="setlistList" class="setlist-list"></div>
 						</aside>
 					</div>
@@ -142,22 +142,22 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">Last.fm + Spotify</p>
-						<h2>Crea playlist per genere</h2>
+						<h2>Create a playlist by genre</h2>
 					</div>
-					<button id="genreHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="genreHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<form id="genreArtistForm" class="search-form" action="/api/genre-playlists/artists" method="get">
 					<div class="form-grid">
 						<label>
-							<span>Genere</span>
-							<input id="genreName" name="genre" type="search" placeholder="Es. Punk" autocomplete="off" required>
+							<span>Genre</span>
+							<input id="genreName" name="genre" type="search" placeholder="E.g. Punk" autocomplete="off" required>
 						</label>
 						<label>
-							<span>Top artisti</span>
+							<span>Top artists</span>
 							<input id="genreArtistLimit" name="artistLimit" type="number" min="1" max="25" value="15" required>
 						</label>
-						<button type="submit" class="primary-button">Cerca</button>
+						<button type="submit" class="primary-button">Search</button>
 					</div>
 				</form>
 
@@ -166,7 +166,7 @@
 				<section id="genreArtistResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Top artisti</p>
+							<p class="eyebrow">Top artists</p>
 							<h2 id="genreArtistTitle"></h2>
 						</div>
 					</div>
@@ -176,43 +176,43 @@
 				<form id="genreTrackForm" class="search-form followup-form hidden" action="/api/genre-playlists/tracks" method="post">
 					<div class="form-grid compact">
 						<label>
-							<span>Canzoni per artista</span>
+							<span>Tracks per artist</span>
 							<input id="tracksPerArtist" name="tracksPerArtist" type="number" min="1" max="10" value="3" required>
 						</label>
-						<button type="submit" class="primary-button">Cerca canzoni</button>
+						<button type="submit" class="primary-button">Search tracks</button>
 					</div>
 				</form>
 
 				<section id="genreTrackResults" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Preview genere</p>
+							<p class="eyebrow">Genre preview</p>
 							<h2 id="genreTrackTitle"></h2>
 						</div>
-						<button id="openGenreCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openGenreCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
 						<div>
-							<span class="metric-label">Artisti</span>
+							<span class="metric-label">Artists</span>
 							<strong id="genreArtistCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Brani</span>
+							<span class="metric-label">Tracks</span>
 							<strong id="genreTrackCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Origine</span>
+							<span class="metric-label">Source</span>
 							<strong class="source-label">Last.fm</strong>
 						</div>
 					</div>
 
 					<section>
-						<h3>Brani selezionati</h3>
+						<h3>Selected tracks</h3>
 						<ol id="genreTrackList" class="song-list"></ol>
 					</section>
 					<div class="results-footer">
-						<button id="openGenreCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openGenreCreatePanelBottom" type="button" class="primary-button">Create Playlist</button>
 					</div>
 				</section>
 			</section>
@@ -223,16 +223,16 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">Spotify + Last.fm</p>
-						<h2>Crea playlist dalla discografia di un artista</h2>
+						<h2>Create a playlist from an artist's discography</h2>
 					</div>
-					<button id="discographyHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="discographyHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<form id="discographySearchForm" class="search-form">
-					<label for="discographyArtistName">Artista</label>
+					<label for="discographyArtistName">Artist</label>
 					<div class="search-row">
-						<input id="discographyArtistName" name="artistName" type="search" placeholder="Es. Radiohead" autocomplete="off" required>
-						<button type="submit" class="primary-button">Cerca</button>
+						<input id="discographyArtistName" name="artistName" type="search" placeholder="E.g. Radiohead" autocomplete="off" required>
+						<button type="submit" class="primary-button">Search</button>
 					</div>
 				</form>
 
@@ -241,10 +241,10 @@
 				<section id="discographyArtistResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Artisti trovati</p>
+							<p class="eyebrow">Artists found</p>
 							<h2 id="discographyArtistTitle"></h2>
 						</div>
-						<strong id="discographyArtistCount" class="result-count">0 artisti</strong>
+						<strong id="discographyArtistCount" class="result-count">0 artists</strong>
 					</div>
 					<div id="discographyArtistList" class="discography-artist-list"></div>
 				</section>
@@ -252,7 +252,7 @@
 				<section id="discographyAlbumResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Album in ordine cronologico</p>
+							<p class="eyebrow">Albums in chronological order</p>
 							<h2 id="discographyAlbumTitle"></h2>
 						</div>
 						<strong id="discographyAlbumCount" class="result-count">0 album</strong>
@@ -261,27 +261,27 @@
 				</section>
 
 				<form id="discographyTrackForm" class="search-form followup-form hidden">
-					<h3>Crea lista di canzoni a partire da questi album</h3>
+					<h3>Create a track list from these albums</h3>
 					<div class="form-grid compact">
 						<label>
-							<span>Canzoni per album</span>
+							<span>Tracks per album</span>
 							<select id="discographyTracksPerAlbum" name="tracksPerAlbum">
 								<option value="1">1</option>
 								<option value="2" selected>2</option>
 								<option value="3">3</option>
 							</select>
 						</label>
-						<button type="submit" class="primary-button">Cerca</button>
+						<button type="submit" class="primary-button">Search</button>
 					</div>
 				</form>
 
 				<section id="discographyTrackResults" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Discografia essenziale</p>
+							<p class="eyebrow">Essential discography</p>
 							<h2 id="discographyTrackTitle"></h2>
 						</div>
-						<button id="openDiscographyCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openDiscographyCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
@@ -290,18 +290,18 @@
 							<strong id="discographySelectedAlbumCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Brani</span>
+							<span class="metric-label">Tracks</span>
 							<strong id="discographyTrackCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Ordine</span>
-							<strong class="source-label">Cronologico</strong>
+							<span class="metric-label">Order</span>
+							<strong class="source-label">Chronological</strong>
 						</div>
 					</div>
 
 					<div id="discographyTrackList" class="discography-track-list"></div>
 					<div class="results-footer">
-						<button id="openDiscographyCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openDiscographyCreatePanelBottom" type="button" class="primary-button">Create Playlist</button>
 					</div>
 				</section>
 			</section>
@@ -312,15 +312,15 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">Spotify</p>
-						<h2>Crea playlist dai tuoi brani preferiti</h2>
+						<h2>Create a playlist from your top tracks</h2>
 					</div>
-					<button id="topTracksHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="topTracksHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<form id="topTracksForm" class="search-form">
 					<div class="form-grid top-tracks-options">
 						<label>
-							<span>Numero di brani</span>
+							<span>Number of tracks</span>
 							<select id="topTracksLimit" name="trackLimit">
 								<option value="10">10</option>
 								<option value="25" selected>25</option>
@@ -329,14 +329,14 @@
 							</select>
 						</label>
 						<label>
-							<span>Periodo</span>
+							<span>Period</span>
 							<select id="topTracksMonths" name="months">
-								<option value="1">Ultimo mese</option>
-								<option value="6" selected>Ultimi 6 mesi</option>
-								<option value="12">Ultimi 12 mesi</option>
+								<option value="1">Last month</option>
+								<option value="6" selected>Last 6 months</option>
+								<option value="12">Last 12 months</option>
 							</select>
 						</label>
-						<button type="submit" class="primary-button">Cerca</button>
+						<button type="submit" class="primary-button">Search</button>
 					</div>
 				</form>
 
@@ -345,30 +345,30 @@
 				<section id="topTracksResults" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">I tuoi ascolti Spotify</p>
+							<p class="eyebrow">Your Spotify listening</p>
 							<h2 id="topTracksTitle"></h2>
 						</div>
-						<button id="openTopTracksCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openTopTracksCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
 						<div>
-							<span class="metric-label">Brani richiesti</span>
+							<span class="metric-label">Requested tracks</span>
 							<strong id="topTracksRequestedCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Brani disponibili</span>
+							<span class="metric-label">Available tracks</span>
 							<strong id="topTracksAvailableCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Periodo</span>
+							<span class="metric-label">Period</span>
 							<strong id="topTracksPeriod" class="source-label"></strong>
 						</div>
 					</div>
 
 					<ol id="topTracksList" class="song-list"></ol>
 					<div class="results-footer">
-						<button id="openTopTracksCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openTopTracksCreatePanelBottom" type="button" class="primary-button">Create Playlist</button>
 					</div>
 				</section>
 			</section>
@@ -379,16 +379,16 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">Last.fm + Spotify</p>
-						<h2>Crea playlist da artisti simili</h2>
+						<h2>Create a playlist from similar artists</h2>
 					</div>
-					<button id="similarArtistsHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="similarArtistsHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<form id="similarArtistsSearchForm" class="search-form">
-					<label for="similarArtistsSourceName">Artista</label>
+					<label for="similarArtistsSourceName">Artist</label>
 					<div class="search-row">
-						<input id="similarArtistsSourceName" name="artistName" type="search" placeholder="Es. Joy Division" autocomplete="off" required>
-						<button type="submit" class="primary-button">Cerca artisti simili</button>
+						<input id="similarArtistsSourceName" name="artistName" type="search" placeholder="E.g. Joy Division" autocomplete="off" required>
+						<button type="submit" class="primary-button">Search similar artists</button>
 					</div>
 				</form>
 
@@ -397,10 +397,10 @@
 				<section id="similarSourceArtistResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Artisti trovati</p>
+							<p class="eyebrow">Artists found</p>
 							<h2 id="similarSourceArtistTitle"></h2>
 						</div>
-						<strong id="similarSourceArtistCount" class="result-count">0 artisti</strong>
+						<strong id="similarSourceArtistCount" class="result-count">0 artists</strong>
 					</div>
 					<div id="similarSourceArtistList" class="discography-artist-list"></div>
 				</section>
@@ -408,10 +408,10 @@
 				<section id="similarArtistsResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Artisti simili verificati</p>
+							<p class="eyebrow">Verified similar artists</p>
 							<h2 id="similarArtistsTitle"></h2>
 						</div>
-						<strong id="similarArtistsCount" class="result-count">0 artisti</strong>
+						<strong id="similarArtistsCount" class="result-count">0 artists</strong>
 					</div>
 					<div id="similarArtistsList" class="similar-artist-selection-list"></div>
 				</section>
@@ -419,40 +419,40 @@
 				<form id="similarArtistsTrackForm" class="search-form followup-form hidden">
 					<div class="form-grid compact">
 						<label>
-							<span>Canzoni per artista</span>
+							<span>Tracks per artist</span>
 							<input id="similarArtistsTracksPerArtist" name="tracksPerArtist" type="number" min="1" max="10" value="3" required>
 						</label>
-						<button type="submit" class="primary-button">Cerca canzoni</button>
+						<button type="submit" class="primary-button">Search tracks</button>
 					</div>
 				</form>
 
 				<section id="similarArtistsTrackResults" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Preview artisti simili</p>
+							<p class="eyebrow">Similar artists preview</p>
 							<h2 id="similarArtistsTrackTitle"></h2>
 						</div>
-						<button id="openSimilarArtistsCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openSimilarArtistsCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
 						<div>
-							<span class="metric-label">Artisti selezionati</span>
+							<span class="metric-label">Selected artists</span>
 							<strong id="similarArtistsSelectedCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Brani</span>
+							<span class="metric-label">Tracks</span>
 							<strong id="similarArtistsTrackCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Origine</span>
+							<span class="metric-label">Source</span>
 							<strong class="source-label">Last.fm</strong>
 						</div>
 					</div>
 
 					<ol id="similarArtistsTrackList" class="song-list"></ol>
 					<div class="results-footer">
-						<button id="openSimilarArtistsCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openSimilarArtistsCreatePanelBottom" type="button" class="primary-button">Create Playlist</button>
 					</div>
 				</section>
 			</section>
@@ -463,9 +463,9 @@
 				<div class="section-heading">
 					<div>
 						<p class="eyebrow">Spotify + Last.fm</p>
-						<h2>Scopri nuova musica</h2>
+						<h2>Discover new music</h2>
 					</div>
-					<button id="discoverHomeButton" type="button" class="secondary-button">Torna alla Home</button>
+					<button id="discoverHomeButton" type="button" class="secondary-button">Back to Home</button>
 				</div>
 
 				<section id="discoverMessage" class="message hidden"></section>
@@ -473,58 +473,58 @@
 				<section id="discoverTopArtistsResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Ultimi 6 mesi</p>
-							<h2>I tuoi artisti piu ascoltati</h2>
+							<p class="eyebrow">Last 6 months</p>
+							<h2>Your most played artists</h2>
 						</div>
-						<strong id="discoverTopArtistsCount" class="result-count">0 artisti</strong>
+						<strong id="discoverTopArtistsCount" class="result-count">0 artists</strong>
 					</div>
 					<div id="discoverTopArtistsList" class="discovery-artist-selection-list"></div>
 					<div class="results-footer">
-						<button id="discoverSimilarButton" type="button" class="primary-button">Cerca simili</button>
+						<button id="discoverSimilarButton" type="button" class="primary-button">Search similar artists</button>
 					</div>
 				</section>
 
 				<section id="discoverSimilarResults" class="results compact-results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Suggerimenti Last.fm</p>
-							<h2>Artisti simili</h2>
+							<p class="eyebrow">Last.fm suggestions</p>
+							<h2>Similar artists</h2>
 						</div>
-						<strong id="discoverSimilarCount" class="result-count">0 artisti</strong>
+						<strong id="discoverSimilarCount" class="result-count">0 artists</strong>
 					</div>
 					<div id="discoverSimilarList" class="discovery-artist-selection-list"></div>
 					<div class="results-footer">
-						<button id="discoverTracksButton" type="button" class="primary-button">Cerca canzoni</button>
+						<button id="discoverTracksButton" type="button" class="primary-button">Search tracks</button>
 					</div>
 				</section>
 
 				<section id="discoverTrackResults" class="results hidden">
 					<div class="results-header">
 						<div>
-							<p class="eyebrow">Musica nuova</p>
-							<h2>Brani consigliati</h2>
+							<p class="eyebrow">New music</p>
+							<h2>Recommended tracks</h2>
 						</div>
-						<button id="openDiscoverCreatePanel" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openDiscoverCreatePanel" type="button" class="primary-button">Create Playlist</button>
 					</div>
 
 					<div class="summary-grid">
 						<div>
-							<span class="metric-label">Artisti</span>
+							<span class="metric-label">Artists</span>
 							<strong id="discoverTrackArtistCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Brani nuovi</span>
+							<span class="metric-label">New tracks</span>
 							<strong id="discoverTrackCount">0</strong>
 						</div>
 						<div>
-							<span class="metric-label">Periodo base</span>
-							<strong class="source-label">6 mesi</strong>
+							<span class="metric-label">Reference period</span>
+							<strong class="source-label">6 months</strong>
 						</div>
 					</div>
 
 					<ol id="discoverTrackList" class="song-list"></ol>
 					<div class="results-footer">
-						<button id="openDiscoverCreatePanelBottom" type="button" class="primary-button">Crea Playlist</button>
+						<button id="openDiscoverCreatePanelBottom" type="button" class="primary-button">Create Playlist</button>
 					</div>
 				</section>
 			</section>
@@ -534,18 +534,18 @@
 	<div id="createDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="createTitle">
 		<form id="createForm" class="dialog">
 			<div class="dialog-header">
-				<h2 id="createTitle">Crea playlist</h2>
-				<button id="closeCreatePanel" type="button" class="icon-button" aria-label="Chiudi">x</button>
+				<h2 id="createTitle">Create playlist</h2>
+				<button id="closeCreatePanel" type="button" class="icon-button" aria-label="Close">x</button>
 			</div>
-			<label for="playlistName">Titolo playlist</label>
+			<label for="playlistName">Playlist title</label>
 			<input id="playlistName" name="playlistName" type="text" required>
 
-			<label for="playlistDescription">Descrizione</label>
+			<label for="playlistDescription">Description</label>
 			<textarea id="playlistDescription" name="playlistDescription" rows="4"></textarea>
 
 			<div class="dialog-actions">
-				<button type="button" id="cancelCreate" class="secondary-button">Annulla</button>
-				<button type="submit" class="primary-button">Crea su Spotify</button>
+				<button type="button" id="cancelCreate" class="secondary-button">Cancel</button>
+				<button type="submit" class="primary-button">Create on Spotify</button>
 			</div>
 		</form>
 	</div>
@@ -554,12 +554,12 @@
 		<div class="loading-panel">
 			<div class="spinner" aria-hidden="true"></div>
 			<div>
-				<h2 id="loadingTitle">Creazione playlist</h2>
-				<p id="loadingText">Ricerca dei brani su Spotify e preparazione della playlist...</p>
+				<h2 id="loadingTitle">Creating playlist</h2>
+				<p id="loadingText">Searching Spotify and preparing the playlist...</p>
 			</div>
 		</div>
 	</div>
 
-	<script src="/app.js?v=discover-new-music-1"></script>
+	<script src="/app.js?v=english-ui-1"></script>
 </body>
 </html>

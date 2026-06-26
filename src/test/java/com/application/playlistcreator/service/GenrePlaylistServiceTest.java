@@ -57,8 +57,8 @@ class GenrePlaylistServiceTest {
 				.containsExactly(1, 2);
 		assertThat(result.requestedArtistCount()).isEqualTo(3);
 		assertThat(result.checkedCandidateCount()).isEqualTo(3);
-		assertThat(result.warning()).contains("Non sono stati trovati 3 artisti")
-				.contains("Verranno mostrati 2 artisti");
+		assertThat(result.warning()).contains("Only 2 artists strongly associated")
+				.contains("requested 3");
 		verify(lastFmClient).getTopArtists("post-punk", 12);
 	}
 

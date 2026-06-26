@@ -110,7 +110,7 @@ public class DiscographyPlaylistService {
 						artist.external_urls() != null ? artist.external_urls().get("spotify") : null))
 				.toList();
 		if (artists.isEmpty()) {
-			throw new ExternalApiException("Nessun artista Spotify trovato per: " + query);
+			throw new ExternalApiException("No Spotify artist found for: " + query);
 		}
 		log.info("Spotify artists ready for discography selection. query={}, spotifyCandidates={}, matchingArtists={}",
 				query, spotifyArtists.size(), artists.size());

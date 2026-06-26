@@ -139,8 +139,8 @@ public class GenrePlaylistService {
 			throw new ExternalApiException("No strongly associated Last.fm artists found for genre: " + validatedGenre);
 		}
 		String warning = candidates.size() < limit
-				? "Non sono stati trovati " + limit + " artisti fortemente associati al genere "
-						+ toDisplayGenre(validatedGenre) + ". Verranno mostrati " + candidates.size() + " artisti."
+				? "Only " + candidates.size() + " artists strongly associated with "
+						+ toDisplayGenre(validatedGenre) + " were found instead of the requested " + limit + "."
 				: null;
 		GenreArtistSearchResult result = new GenreArtistSearchResult(
 				validatedGenre,

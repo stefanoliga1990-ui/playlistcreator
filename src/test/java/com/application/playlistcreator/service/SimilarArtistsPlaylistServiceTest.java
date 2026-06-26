@@ -77,7 +77,7 @@ class SimilarArtistsPlaylistServiceTest {
 				.containsExactly(1, 2);
 		assertThat(result.artists().get(0).similarityScore())
 				.isGreaterThan(result.artists().get(1).similarityScore());
-		assertThat(result.warning()).isEqualTo("Last.fm ha restituito solo 2 artisti simili validi");
+		assertThat(result.warning()).isEqualTo("Last.fm returned only 2 valid similar artists");
 	}
 
 	@Test
