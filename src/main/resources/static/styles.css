@@ -2,13 +2,62 @@
 	--bg: #f5f7f4;
 	--surface: #ffffff;
 	--surface-muted: #edf2ef;
+	--input-bg: #ffffff;
+	--item-bg: #ffffff;
+	--accent-soft: #f3fbf6;
 	--text: #17211c;
 	--muted: #65736a;
 	--line: #dbe3de;
 	--accent: #1db954;
+	--accent-hover: #1ed760;
 	--accent-dark: #13853b;
 	--danger: #b3261e;
 	--shadow: 0 18px 45px rgba(23, 33, 28, 0.12);
+	--hover-shadow: 0 22px 52px rgba(23, 33, 28, 0.16);
+	--focus-ring: rgba(29, 185, 84, 0.16);
+	--button-text: #082112;
+	--warning-bg: #fff7df;
+	--warning-text: #765400;
+	--warning-line: #f1d991;
+	--error-bg: #fff1ef;
+	--error-line: #f3b8b2;
+	--success-bg: #edf9f1;
+	--success-line: rgba(29, 185, 84, 0.35);
+	--dialog-backdrop: rgba(16, 24, 20, 0.38);
+	--loading-backdrop: rgba(245, 247, 244, 0.82);
+	--spinner-track: rgba(29, 185, 84, 0.18);
+	color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+	--bg: #121212;
+	--surface: #181818;
+	--surface-muted: #282828;
+	--input-bg: #121212;
+	--item-bg: #181818;
+	--accent-soft: #12331f;
+	--text: #ffffff;
+	--muted: #b3b3b3;
+	--line: #333333;
+	--accent: #1db954;
+	--accent-hover: #1ed760;
+	--accent-dark: #1ed760;
+	--danger: #ff8a80;
+	--shadow: 0 18px 45px rgba(0, 0, 0, 0.38);
+	--hover-shadow: 0 22px 52px rgba(0, 0, 0, 0.52);
+	--focus-ring: rgba(29, 185, 84, 0.28);
+	--button-text: #06170d;
+	--warning-bg: #2a210b;
+	--warning-text: #ffd66b;
+	--warning-line: #5c4611;
+	--error-bg: #2a1412;
+	--error-line: #6b2a24;
+	--success-bg: #102a1a;
+	--success-line: rgba(29, 185, 84, 0.42);
+	--dialog-backdrop: rgba(0, 0, 0, 0.66);
+	--loading-backdrop: rgba(18, 18, 18, 0.82);
+	--spinner-track: rgba(29, 185, 84, 0.24);
+	color-scheme: dark;
 }
 
 * {
@@ -20,6 +69,7 @@ body {
 	background: var(--bg);
 	color: var(--text);
 	font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	transition: background 160ms ease, color 160ms ease;
 }
 
 button,
@@ -55,6 +105,25 @@ textarea {
 	display: flex;
 	align-items: center;
 	gap: 10px;
+}
+
+.theme-toggle {
+	min-width: 62px;
+	min-height: 38px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--text);
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 800;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+	border-color: rgba(29, 185, 84, 0.55);
+	outline: none;
+	box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 h1,
@@ -173,7 +242,7 @@ h3 {
 
 .navigation-card:hover {
 	border-color: rgba(29, 185, 84, 0.6);
-	box-shadow: 0 22px 52px rgba(23, 33, 28, 0.16);
+	box-shadow: var(--hover-shadow);
 	transform: translateY(-3px);
 }
 
@@ -233,7 +302,7 @@ h3 {
 	width: 100%;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--input-bg);
 	color: var(--text);
 	outline: none;
 }
@@ -259,7 +328,7 @@ h3 {
 .dialog input[type="text"]:focus,
 .dialog textarea:focus {
 	border-color: var(--accent);
-	box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.16);
+	box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .form-grid {
@@ -310,11 +379,11 @@ h3 {
 	min-height: 46px;
 	padding: 0 18px;
 	background: var(--accent);
-	color: #082112;
+	color: var(--button-text);
 }
 
 .primary-button:hover {
-	background: #20cf5d;
+	background: var(--accent-hover);
 }
 
 .secondary-button {
@@ -339,21 +408,21 @@ h3 {
 .message {
 	border-radius: 8px;
 	padding: 14px 16px;
-	background: #fff7df;
-	color: #765400;
-	border: 1px solid #f1d991;
+	background: var(--warning-bg);
+	color: var(--warning-text);
+	border: 1px solid var(--warning-line);
 }
 
 .message.error {
-	background: #fff1ef;
+	background: var(--error-bg);
 	color: var(--danger);
-	border-color: #f3b8b2;
+	border-color: var(--error-line);
 }
 
 .message.success {
-	background: #edf9f1;
+	background: var(--success-bg);
 	color: var(--accent-dark);
-	border-color: rgba(29, 185, 84, 0.35);
+	border-color: var(--success-line);
 }
 
 .message .playlist-link {
@@ -437,7 +506,7 @@ h3 {
 	padding: 10px 14px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--item-bg);
 	cursor: pointer;
 }
 
@@ -476,7 +545,7 @@ h3 {
 	padding: 10px 14px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--item-bg);
 	color: var(--text);
 	text-align: left;
 	cursor: pointer;
@@ -485,7 +554,7 @@ h3 {
 .discography-artist-item:hover,
 .discography-artist-item:focus-visible {
 	border-color: var(--accent);
-	background: #f3fbf6;
+	background: var(--accent-soft);
 }
 
 .discography-artist-name {
@@ -508,7 +577,7 @@ h3 {
 	padding: 12px 14px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--item-bg);
 	cursor: pointer;
 }
 
@@ -566,7 +635,7 @@ h3 {
 	padding: 10px 14px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--item-bg);
 	cursor: pointer;
 }
 
@@ -665,7 +734,7 @@ a {
 .setlist-card {
 	border: 1px solid var(--line);
 	border-radius: 8px;
-	background: #fff;
+	background: var(--item-bg);
 }
 
 .song-list li,
@@ -759,7 +828,7 @@ a {
 	display: grid;
 	place-items: center;
 	padding: 20px;
-	background: rgba(16, 24, 20, 0.38);
+	background: var(--dialog-backdrop);
 }
 
 .loading-backdrop {
@@ -769,7 +838,7 @@ a {
 	display: grid;
 	place-items: center;
 	padding: 20px;
-	background: rgba(245, 247, 244, 0.82);
+	background: var(--loading-backdrop);
 	backdrop-filter: blur(5px);
 }
 
@@ -795,7 +864,7 @@ a {
 	width: 42px;
 	height: 42px;
 	flex: 0 0 auto;
-	border: 4px solid rgba(29, 185, 84, 0.18);
+	border: 4px solid var(--spinner-track);
 	border-top-color: var(--accent);
 	border-radius: 50%;
 	animation: spin 0.9s linear infinite;
