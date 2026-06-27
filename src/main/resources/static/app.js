@@ -34,6 +34,7 @@ const state = {
 };
 
 const els = {
+	brandHomeLink: document.querySelector("#brandHomeLink"),
 	themeToggle: document.querySelector("#themeToggle"),
 	loginStatus: document.querySelector("#loginStatus"),
 	logoutButton: document.querySelector("#logoutButton"),
@@ -239,6 +240,15 @@ function bindEvents() {
 	bindClick(els.topTracksHomeButton, () => navigateTo("home"));
 	bindClick(els.similarArtistsHomeButton, () => navigateTo("home"));
 	bindClick(els.discoverHomeButton, () => navigateTo("home"));
+	bindClick(els.brandHomeLink, (event) => {
+		event.preventDefault();
+		if (state.loggedIn) {
+			navigateTo("home");
+		}
+		else {
+			window.scrollTo({ top: 0, behavior: "smooth" });
+		}
+	});
 	bindClick(els.closeCreatePanel, closeCreateDialog);
 	bindClick(els.cancelCreate, closeCreateDialog);
 	bindClick(els.logoutButton, () => logoutSpotify());

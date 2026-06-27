@@ -4,22 +4,24 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>Playlist Creator</title>
-	<link rel="stylesheet" href="/styles.css?v=theme-switch-1">
+	<link rel="stylesheet" href="/styles.css?v=header-footer-1">
 </head>
 <body>
-	<main class="app-shell">
-		<header class="topbar">
-			<div>
-				<p class="eyebrow">setlist.fm + Spotify</p>
-				<h1>Playlist Creator</h1>
-			</div>
+	<header class="site-header">
+		<div class="site-header-inner topbar">
+			<a id="brandHomeLink" class="brand-link" href="/" aria-label="Playlist Creator home">
+				<span class="eyebrow">setlist.fm + Spotify</span>
+				<span class="brand-title">Playlist Creator</span>
+			</a>
 			<div class="topbar-actions">
 				<button id="themeToggle" type="button" class="theme-toggle" aria-label="Switch to dark theme">Light</button>
 				<div id="loginStatus" class="status-pill">Checking login...</div>
 				<button id="logoutButton" type="button" class="secondary-button compact-button hidden">Logout</button>
 			</div>
-		</header>
+		</div>
+	</header>
 
+	<main class="app-shell">
 		<section id="loginView" class="panel auth-panel hidden">
 			<div class="auth-copy">
 				<h2>Connect Spotify</h2>
@@ -532,6 +534,17 @@
 		</section>
 	</main>
 
+	<footer class="site-footer">
+		<div class="site-footer-inner">
+			<p>
+				Playlist Creator <span aria-hidden="true">&middot;</span> Data provided by
+				<a href="https://www.spotify.com/" target="_blank" rel="noopener noreferrer">Spotify</a>,
+				<a href="https://www.last.fm/" target="_blank" rel="noopener noreferrer">Last.fm</a> and
+				<a href="https://www.setlist.fm/" target="_blank" rel="noopener noreferrer">setlist.fm</a>
+			</p>
+		</div>
+	</footer>
+
 	<div id="createDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="createTitle">
 		<form id="createForm" class="dialog">
 			<div class="dialog-header">
@@ -561,6 +574,6 @@
 		</div>
 	</div>
 
-	<script src="/app.js?v=theme-switch-1"></script>
+	<script src="/app.js?v=header-footer-1"></script>
 </body>
 </html>
