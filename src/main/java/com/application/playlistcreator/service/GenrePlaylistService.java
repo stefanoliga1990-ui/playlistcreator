@@ -2,14 +2,12 @@ package com.application.playlistcreator.service;
 
 import java.math.BigInteger;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.application.playlistcreator.client.lastfm.LastFmClient;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Artist;
@@ -18,6 +16,7 @@ import com.application.playlistcreator.client.lastfm.LastFmClient.TagInfo;
 import com.application.playlistcreator.client.lastfm.LastFmClient.TagInfoResponse;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Track;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
+import com.application.playlistcreator.config.BoundedCacheFactory;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.dto.SelectedTrackRequest;
 import com.application.playlistcreator.exception.ExternalApiException;
@@ -27,6 +26,7 @@ import com.application.playlistcreator.model.GenreTrackCandidate;
 import com.application.playlistcreator.model.GenreTrackMatch;
 import com.application.playlistcreator.model.SpotifyTrackMatch;
 import com.application.playlistcreator.model.SpotifyTrackMatch.MatchStatus;
+import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +37,8 @@ public class GenrePlaylistService {
 	private static final Logger log = LoggerFactory.getLogger(GenrePlaylistService.class);
 	private static final Duration CACHE_TTL = Duration.ofMinutes(30);
 	private static final Duration ARTIST_TAGS_CACHE_TTL = Duration.ofHours(24);
+	private static final long RESULT_CACHE_MAX_SIZE = 500;
+	private static final long ARTIST_TAGS_CACHE_MAX_SIZE = 5000;
 	private static final int ARTIST_CANDIDATE_MULTIPLIER = 4;
 	private static final int MAX_GENRE_TAG_RANK = 3;
 
@@ -46,9 +48,12 @@ public class GenrePlaylistService {
 	private final SpotifyApiClient spotifyApiClient;
 	private final SongNormalizer songNormalizer;
 	private final PlaylistCreatorProperties.GenrePlaylist genreProperties;
-	private final Map<String, CachedArtists> artistsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedTopTags> artistTopTagsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedSelection> selectionCache = new ConcurrentHashMap<>();
+	private final Cache<String, GenreArtistSearchResult> artistsCache = BoundedCacheFactory.create(
+			CACHE_TTL, RESULT_CACHE_MAX_SIZE);
+	private final Cache<String, List<Tag>> artistTopTagsCache = BoundedCacheFactory.create(
+			ARTIST_TAGS_CACHE_TTL, ARTIST_TAGS_CACHE_MAX_SIZE);
+	private final Cache<String, GenrePlaylistSelection> selectionCache = BoundedCacheFactory.create(
+			CACHE_TTL, RESULT_CACHE_MAX_SIZE);
 
 	public GenrePlaylistService(LastFmClient lastFmClient,
 			GenreTagMatcher genreTagMatcher,
@@ -70,11 +75,11 @@ public class GenrePlaylistService {
 				"artistLimit");
 		String genreKey = genreTagMatcher.normalize(normalizedGenre);
 		String cacheKey = genreKey + ":" + limit;
-		CachedArtists cachedArtists = artistsCache.get(cacheKey);
-		if (cachedArtists != null && cachedArtists.isValid()) {
+		GenreArtistSearchResult cachedArtists = artistsCache.getIfPresent(cacheKey);
+		if (cachedArtists != null) {
 			log.info("Using cached filtered Last.fm genre artists. genre={}, requestedLimit={}, artists={}",
-					normalizedGenre, limit, cachedArtists.result().artists().size());
-			return cachedArtists.result();
+					normalizedGenre, limit, cachedArtists.artists().size());
+			return cachedArtists;
 		}
 
 		TagInfoResponse tagInfoResponse = resolveGenreTag(normalizedGenre);
@@ -148,7 +153,7 @@ public class GenrePlaylistService {
 				limit,
 				checkedCandidates,
 				warning);
-		artistsCache.put(cacheKey, new CachedArtists(result, Instant.now()));
+		artistsCache.put(cacheKey, result);
 		log.info("Filtered Last.fm top artists ready. genre={}, requestedLimit={}, checkedCandidates={}, acceptedArtists={}, warning={}",
 				validatedGenre, limit, checkedCandidates, candidates.size(), warning != null);
 		return result;
@@ -169,11 +174,11 @@ public class GenrePlaylistService {
 		String cacheKey = normalizedGenre.toLowerCase() + ":" + artistsLimit + ":"
 				+ artists.stream().map(GenreArtistCandidate::name).sorted().reduce("", (a, b) -> a + "," + b)
 				+ ":" + trackLimit;
-		CachedSelection cachedSelection = selectionCache.get(cacheKey);
-		if (cachedSelection != null && cachedSelection.isValid()) {
+		GenrePlaylistSelection cachedSelection = selectionCache.getIfPresent(cacheKey);
+		if (cachedSelection != null) {
 			log.info("Using cached Last.fm genre tracks. genre={}, artists={}, tracksPerArtist={}, tracks={}",
-					normalizedGenre, artistsLimit, trackLimit, cachedSelection.selection().tracks().size());
-			return cachedSelection.selection();
+					normalizedGenre, artistsLimit, trackLimit, cachedSelection.tracks().size());
+			return cachedSelection;
 		}
 
 		List<GenreTrackCandidate> tracks = new ArrayList<>();
@@ -207,7 +212,7 @@ public class GenrePlaylistService {
 			throw new ExternalApiException("No Last.fm tracks found for genre: " + normalizedGenre);
 		}
 		GenrePlaylistSelection selection = new GenrePlaylistSelection(normalizedGenre, artists, deduplicatedTracks);
-		selectionCache.put(cacheKey, new CachedSelection(selection, Instant.now()));
+		selectionCache.put(cacheKey, selection);
 		log.info("Last.fm genre tracks ready. genre={}, artists={}, requestedTracksPerArtist={}, tracks={}",
 				normalizedGenre, artists.size(), trackLimit, deduplicatedTracks.size());
 		return selection;
@@ -457,17 +462,17 @@ public class GenrePlaylistService {
 		String cacheKey = artist.mbid() != null && !artist.mbid().isBlank()
 				? "mbid:" + artist.mbid()
 				: "artist:" + genreTagMatcher.normalize(artist.name());
-		CachedTopTags cachedTopTags = artistTopTagsCache.get(cacheKey);
-		if (cachedTopTags != null && cachedTopTags.isValid()) {
+		List<Tag> cachedTopTags = artistTopTagsCache.getIfPresent(cacheKey);
+		if (cachedTopTags != null) {
 			log.info("Using cached Last.fm artist top tags. artist={}, tags={}",
-					artist.name(), cachedTopTags.tags().size());
-			return cachedTopTags.tags();
+					artist.name(), cachedTopTags.size());
+			return cachedTopTags;
 		}
 		var response = lastFmClient.getArtistTopTags(artist.name(), artist.mbid());
 		List<Tag> tags = response != null && response.toptags() != null && response.toptags().tag() != null
 				? List.copyOf(response.toptags().tag())
 				: List.of();
-		artistTopTagsCache.put(cacheKey, new CachedTopTags(tags, Instant.now()));
+		artistTopTagsCache.put(cacheKey, tags);
 		return tags;
 	}
 
@@ -488,27 +493,6 @@ public class GenrePlaylistService {
 			displayTokens.add(token.substring(0, 1).toUpperCase() + token.substring(1).toLowerCase());
 		}
 		return String.join(" ", displayTokens);
-	}
-
-	private record CachedArtists(GenreArtistSearchResult result, Instant createdAt) {
-
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedTopTags(List<Tag> tags, Instant createdAt) {
-
-		boolean isValid() {
-			return createdAt.plus(ARTIST_TAGS_CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedSelection(GenrePlaylistSelection selection, Instant createdAt) {
-
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
 	}
 
 	public record GenreGenerationResult(

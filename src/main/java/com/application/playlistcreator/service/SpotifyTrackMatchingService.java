@@ -3,8 +3,11 @@ package com.application.playlistcreator.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
@@ -22,6 +25,8 @@ import org.springframework.stereotype.Service;
 public class SpotifyTrackMatchingService {
 
 	private static final Logger log = LoggerFactory.getLogger(SpotifyTrackMatchingService.class);
+	private static final int MIN_SAFE_EXTENSION_TITLE_LENGTH = 5;
+	private static final int MAX_SAFE_EXTENSION_EXTRA_TOKENS = 3;
 
 	private final SpotifyApiClient spotifyApiClient;
 	private final SongNormalizer songNormalizer;
@@ -35,7 +40,7 @@ public class SpotifyTrackMatchingService {
 		log.info("Starting Spotify track matching. artistName={}, songs={}", artistName, songs.size());
 		List<SpotifyTrackMatch> matches = new ArrayList<>();
 		for (CandidateSong song : songs) {
-			matches.add(matchTrack(accessToken, artistName, song));
+			matches.add(matchTrack(accessToken, artistName, song, true));
 		}
 		long matched = matches.stream().filter(match -> match.status() == MatchStatus.MATCHED).count();
 		long uncertain = matches.stream().filter(match -> match.status() == MatchStatus.UNCERTAIN).count();
@@ -56,7 +61,7 @@ public class SpotifyTrackMatchingService {
 					track.trackRank(),
 					false,
 					null);
-			matches.add(new GenreTrackMatch(track, matchTrack(accessToken, track.artistName(), song)));
+			matches.add(new GenreTrackMatch(track, matchTrack(accessToken, track.artistName(), song, false)));
 		}
 		long matched = matches.stream().filter(match -> match.spotifyMatch().status() == MatchStatus.MATCHED).count();
 		long uncertain = matches.stream().filter(match -> match.spotifyMatch().status() == MatchStatus.UNCERTAIN).count();
@@ -76,12 +81,17 @@ public class SpotifyTrackMatchingService {
 				null);
 		return new GenreTrackMatch(
 				track,
-				matchTrack(accessToken, track.artistName(), song));
+				matchTrack(accessToken, track.artistName(), song, false));
 	}
 
-	private SpotifyTrackMatch matchTrack(String accessToken, String artistName, CandidateSong song) {
+	private SpotifyTrackMatch matchTrack(
+			String accessToken,
+			String artistName,
+			CandidateSong song,
+			boolean allowSetlistTitleFallback) {
 		List<String> queries = buildQueries(artistName, song);
 		SpotifyTrackMatch bestMatch = null;
+		Map<String, Track> candidates = new LinkedHashMap<>();
 		for (String query : queries) {
 			log.info("Searching Spotify track. song={}, query={}", song.title(), query);
 			var response = spotifyApiClient.searchTracks(accessToken, query);
@@ -90,8 +100,9 @@ public class SpotifyTrackMatchingService {
 					: List.of();
 			log.info("Spotify search returned candidates. song={}, query={}, candidates={}",
 					song.title(), query, tracks.size());
+			tracks.forEach(track -> candidates.putIfAbsent(candidateKey(track), track));
 			SpotifyTrackMatch queryBestMatch = tracks.stream()
-					.map(track -> scoreTrack(song, artistName, track))
+					.map(track -> scoreTrack(song, artistName, track, allowSetlistTitleFallback, false))
 					.max(Comparator.comparingInt(SpotifyTrackMatch::score))
 					.orElse(null);
 			if (queryBestMatch != null && (bestMatch == null || queryBestMatch.score() > bestMatch.score())) {
@@ -99,6 +110,14 @@ public class SpotifyTrackMatchingService {
 			}
 			if (bestMatch != null && bestMatch.score() >= 85) {
 				break;
+			}
+		}
+		if (allowSetlistTitleFallback && (bestMatch == null || bestMatch.status() != MatchStatus.MATCHED)) {
+			SpotifyTrackMatch fallbackMatch = findSafeSetlistFallback(song, artistName, candidates.values().stream().toList());
+			if (fallbackMatch != null && (bestMatch == null || fallbackMatch.score() > bestMatch.score())) {
+				bestMatch = fallbackMatch;
+				log.info("Safe setlist title fallback accepted. song={}, spotifyTrack={}, artists={}, score={}",
+						song.title(), bestMatch.spotifyTrackName(), bestMatch.spotifyArtists(), bestMatch.score());
 			}
 		}
 		if (bestMatch == null) {
@@ -109,6 +128,23 @@ public class SpotifyTrackMatchingService {
 				song.title(), bestMatch.spotifyTrackName(), bestMatch.spotifyArtists(),
 				bestMatch.score(), bestMatch.status());
 		return bestMatch;
+	}
+
+	private SpotifyTrackMatch findSafeSetlistFallback(
+			CandidateSong song,
+			String artistName,
+			List<Track> tracks) {
+		boolean reliableExactCandidateExists = tracks.stream()
+				.anyMatch(track -> isReliableExactSetlistCandidate(song, artistName, track));
+		if (reliableExactCandidateExists) {
+			return null;
+		}
+		return tracks.stream()
+				.filter(track -> isSafeSetlistTitleExpansion(song, artistName, track))
+				.map(track -> scoreTrack(song, artistName, track, true, true))
+				.max(Comparator.comparingInt(SpotifyTrackMatch::score))
+				.filter(match -> match.status() == MatchStatus.MATCHED)
+				.orElse(null);
 	}
 
 	private List<String> buildQueries(String artistName, CandidateSong song) {
@@ -125,9 +161,16 @@ public class SpotifyTrackMatchingService {
 		return value == null ? "" : value.replace("\"", "");
 	}
 
-	private SpotifyTrackMatch scoreTrack(CandidateSong song, String artistName, Track track) {
+	private SpotifyTrackMatch scoreTrack(
+			CandidateSong song,
+			String artistName,
+			Track track,
+			boolean setlistMatching,
+			boolean safeTitleExpansion) {
 		String requestedTitle = song.normalizedTitle();
-		String spotifyTitle = songNormalizer.normalizeTitle(track.name());
+		String spotifyTitle = setlistMatching
+				? songNormalizer.normalizeTitleWithoutFeaturedArtist(track.name())
+				: songNormalizer.normalizeTitle(track.name());
 		String requestedArtist = songNormalizer.normalizeArtist(artistName);
 		List<String> artistNames = track.artists() != null
 				? track.artists().stream().map(SpotifyApiClient.Artist::name).toList()
@@ -140,6 +183,9 @@ public class SpotifyTrackMatchingService {
 		if (requestedTitle.equals(spotifyTitle)) {
 			score += 50;
 		}
+		else if (safeTitleExpansion) {
+			score += 45;
+		}
 		else if (spotifyTitle.contains(requestedTitle) || requestedTitle.contains(spotifyTitle)) {
 			score += 35;
 		}
@@ -149,6 +195,10 @@ public class SpotifyTrackMatchingService {
 
 		if (normalizedArtists.stream().anyMatch(requestedArtist::equals)) {
 			score += 30;
+			if (safeTitleExpansion && !normalizedArtists.isEmpty()
+					&& requestedArtist.equals(normalizedArtists.get(0))) {
+				score += 5;
+			}
 		}
 		else if (normalizedArtists.stream().anyMatch(artist -> artist.contains(requestedArtist) || requestedArtist.contains(artist))) {
 			score += 18;
@@ -176,6 +226,60 @@ public class SpotifyTrackMatchingService {
 		score = Math.max(0, Math.min(100, score));
 		MatchStatus status = score >= 85 ? MatchStatus.MATCHED : score >= 65 ? MatchStatus.UNCERTAIN : MatchStatus.NOT_FOUND;
 		return new SpotifyTrackMatch(song, track.name(), artistNames, track.uri(), score, status);
+	}
+
+	private boolean isReliableExactSetlistCandidate(CandidateSong song, String artistName, Track track) {
+		if (Boolean.FALSE.equals(track.is_playable())) {
+			return false;
+		}
+		String requestedArtist = songNormalizer.normalizeArtist(artistName);
+		boolean artistMatches = track.artists() != null && track.artists().stream()
+				.map(SpotifyApiClient.Artist::name)
+				.map(songNormalizer::normalizeArtist)
+				.anyMatch(requestedArtist::equals);
+		return artistMatches && song.normalizedTitle().equals(
+				songNormalizer.normalizeTitleWithoutFeaturedArtist(track.name()));
+	}
+
+	private boolean isSafeSetlistTitleExpansion(CandidateSong song, String artistName, Track track) {
+		String requestedTitle = song.normalizedTitle();
+		String spotifyTitle = songNormalizer.normalizeTitleWithoutFeaturedArtist(track.name());
+		if (requestedTitle.length() < MIN_SAFE_EXTENSION_TITLE_LENGTH
+				|| !spotifyTitle.startsWith(requestedTitle + " ")
+				|| splitTokens(spotifyTitle).size() - splitTokens(requestedTitle).size()
+						> MAX_SAFE_EXTENSION_EXTRA_TOKENS
+				|| !hasExplicitTitleExtension(song.title(), track.name())
+				|| Boolean.FALSE.equals(track.is_playable())
+				|| songNormalizer.hasPenaltyTerm(track.name())
+				|| (track.album() != null && songNormalizer.hasPenaltyTerm(track.album().name()))) {
+			return false;
+		}
+		String requestedArtist = songNormalizer.normalizeArtist(artistName);
+		boolean primaryArtistMatches = track.artists() != null
+				&& !track.artists().isEmpty()
+				&& requestedArtist.equals(songNormalizer.normalizeArtist(track.artists().get(0).name()));
+		boolean regularRelease = track.album() != null
+				&& ("album".equals(track.album().album_type()) || "single".equals(track.album().album_type()));
+		return primaryArtistMatches && regularRelease;
+	}
+
+	private boolean hasExplicitTitleExtension(String requestedTitle, String spotifyTitle) {
+		if (requestedTitle == null || requestedTitle.isBlank() || spotifyTitle == null) {
+			return false;
+		}
+		Pattern pattern = Pattern.compile(
+				"(?iu)^\\s*" + Pattern.quote(requestedTitle.trim()) + "\\s*[-\\u2013\\u2014:]\\s*\\S+");
+		return pattern.matcher(spotifyTitle).find();
+	}
+
+	private String candidateKey(Track track) {
+		if (track.uri() != null && !track.uri().isBlank()) {
+			return track.uri();
+		}
+		String artists = track.artists() != null
+				? track.artists().stream().map(SpotifyApiClient.Artist::name).collect(Collectors.joining(","))
+				: "";
+		return track.name() + ":" + artists;
 	}
 
 	private int tokenOverlapScore(String left, String right, int maxScore) {

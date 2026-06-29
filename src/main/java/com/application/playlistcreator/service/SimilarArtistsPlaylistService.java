@@ -1,7 +1,6 @@
 package com.application.playlistcreator.service;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -9,7 +8,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.application.playlistcreator.client.lastfm.LastFmClient;
 import com.application.playlistcreator.client.lastfm.LastFmClient.SimilarArtist;
@@ -17,12 +15,14 @@ import com.application.playlistcreator.client.lastfm.LastFmClient.Tag;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Track;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyArtist;
+import com.application.playlistcreator.config.BoundedCacheFactory;
 import com.application.playlistcreator.dto.SelectedTrackRequest;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.model.GenreTrackCandidate;
 import com.application.playlistcreator.model.GenreTrackMatch;
 import com.application.playlistcreator.model.SimilarArtistCandidate;
 import com.application.playlistcreator.model.SimilarArtistsPlaylistSelection;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.application.playlistcreator.model.SpotifyTrackMatch.MatchStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,15 +39,22 @@ public class SimilarArtistsPlaylistService {
 	private static final int TAG_LIMIT = 10;
 	private static final int MIN_SIMILARITY_SCORE = 50;
 	private static final Duration CACHE_TTL = Duration.ofHours(24);
+	private static final long RESULT_CACHE_MAX_SIZE = 500;
+	private static final long METADATA_CACHE_MAX_SIZE = 5000;
+	private static final long SELECTION_CACHE_MAX_SIZE = 1000;
 
 	private final LastFmClient lastFmClient;
 	private final SpotifyTrackMatchingService spotifyTrackMatchingService;
 	private final SpotifyApiClient spotifyApiClient;
 	private final SongNormalizer songNormalizer;
-	private final Map<String, CachedArtists> artistsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedTags> tagsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedSimilarArtists> similarCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedSelection> selectionCache = new ConcurrentHashMap<>();
+	private final Cache<String, ArtistSearchResult> artistsCache = BoundedCacheFactory.create(
+			CACHE_TTL, RESULT_CACHE_MAX_SIZE);
+	private final Cache<String, List<Tag>> tagsCache = BoundedCacheFactory.create(
+			CACHE_TTL, METADATA_CACHE_MAX_SIZE);
+	private final Cache<String, List<SimilarArtist>> similarCache = BoundedCacheFactory.create(
+			CACHE_TTL, METADATA_CACHE_MAX_SIZE);
+	private final Cache<String, SimilarArtistsPlaylistSelection> selectionCache = BoundedCacheFactory.create(
+			CACHE_TTL, SELECTION_CACHE_MAX_SIZE);
 
 	public SimilarArtistsPlaylistService(
 			LastFmClient lastFmClient,
@@ -63,11 +70,11 @@ public class SimilarArtistsPlaylistService {
 	public ArtistSearchResult findSimilarArtists(String artistName) {
 		String requestedArtist = validateArtistName(artistName);
 		String cacheKey = songNormalizer.normalizeArtist(requestedArtist);
-		CachedArtists cached = artistsCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
+		ArtistSearchResult cached = artistsCache.getIfPresent(cacheKey);
+		if (cached != null) {
 			log.info("Using cached validated similar artists. artist={}, artists={}",
-					requestedArtist, cached.result().artists().size());
-			return cached.result();
+					requestedArtist, cached.artists().size());
+			return cached;
 		}
 
 		List<SimilarArtist> directCandidates = getSimilarArtists(requestedArtist, CANDIDATE_LIMIT);
@@ -153,7 +160,7 @@ public class SimilarArtistsPlaylistService {
 				List.copyOf(artists),
 				evaluatedCandidates,
 				warning);
-		artistsCache.put(cacheKey, new CachedArtists(result, Instant.now()));
+		artistsCache.put(cacheKey, result);
 		log.info("Validated similar artists ready. artist={}, candidates={}, artists={}, warning={}",
 				resolvedArtist, evaluatedCandidates, artists.size(), warning != null);
 		return result;
@@ -205,11 +212,11 @@ public class SimilarArtistsPlaylistService {
 			throw new ExternalApiException("Select at least one similar artist");
 		}
 		String cacheKey = selectionCacheKey(search.sourceArtistName(), selectedArtists, trackLimit);
-		CachedSelection cached = selectionCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
+		SimilarArtistsPlaylistSelection cached = selectionCache.getIfPresent(cacheKey);
+		if (cached != null) {
 			log.info("Using cached similar artists tracks. sourceArtist={}, artists={}, tracksPerArtist={}",
 					search.sourceArtistName(), selectedArtists.size(), trackLimit);
-			return cached.selection();
+			return cached;
 		}
 
 		List<GenreTrackCandidate> tracks = new ArrayList<>();
@@ -257,7 +264,7 @@ public class SimilarArtistsPlaylistService {
 				List.copyOf(deduplicatedTracks),
 				trackLimit,
 				warning);
-		selectionCache.put(cacheKey, new CachedSelection(selection, Instant.now()));
+		selectionCache.put(cacheKey, selection);
 		return selection;
 	}
 
@@ -338,16 +345,16 @@ public class SimilarArtistsPlaylistService {
 
 	private List<SimilarArtist> getSimilarArtists(String artistName, int limit) {
 		String cacheKey = songNormalizer.normalizeArtist(artistName) + ":" + limit;
-		CachedSimilarArtists cached = similarCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
-			return cached.artists();
+		List<SimilarArtist> cached = similarCache.getIfPresent(cacheKey);
+		if (cached != null) {
+			return cached;
 		}
 		var response = lastFmClient.getSimilarArtists(artistName, limit);
 		List<SimilarArtist> artists = response != null && response.similarartists() != null
 				&& response.similarartists().artist() != null
 						? List.copyOf(response.similarartists().artist())
 						: List.of();
-		similarCache.put(cacheKey, new CachedSimilarArtists(artists, Instant.now()));
+		similarCache.put(cacheKey, artists);
 		return artists;
 	}
 
@@ -375,15 +382,15 @@ public class SimilarArtistsPlaylistService {
 		String cacheKey = musicBrainzId != null && !musicBrainzId.isBlank()
 				? "mbid:" + musicBrainzId
 				: "artist:" + songNormalizer.normalizeArtist(artistName);
-		CachedTags cached = tagsCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
-			return cached.tags();
+		List<Tag> cached = tagsCache.getIfPresent(cacheKey);
+		if (cached != null) {
+			return cached;
 		}
 		var response = lastFmClient.getArtistTopTags(artistName, musicBrainzId);
 		List<Tag> tags = response != null && response.toptags() != null && response.toptags().tag() != null
 				? response.toptags().tag().stream().limit(TAG_LIMIT).toList()
 				: List.of();
-		tagsCache.put(cacheKey, new CachedTags(tags, Instant.now()));
+		tagsCache.put(cacheKey, tags);
 		return tags;
 	}
 
@@ -514,30 +521,6 @@ public class SimilarArtistsPlaylistService {
 			batches.add(values.subList(start, Math.min(start + batchSize, values.size())));
 		}
 		return batches;
-	}
-
-	private record CachedArtists(ArtistSearchResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedTags(List<Tag> tags, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedSimilarArtists(List<SimilarArtist> artists, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedSelection(SimilarArtistsPlaylistSelection selection, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
 	}
 
 	public record ArtistSearchResult(

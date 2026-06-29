@@ -1,24 +1,34 @@
 package com.application.playlistcreator.client.setlistfm;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.exception.SetlistFmArtistNotFoundException;
+import com.application.playlistcreator.service.ExternalApiResilienceService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import static com.application.playlistcreator.service.ExternalApiResilienceService.Provider.SETLIST_FM;
+
 @Component
 public class SetlistFmClient {
+	private static final long MIN_REQUEST_INTERVAL_NANOS = 600_000_000L;
 
 	private final RestClient restClient;
 	private final PlaylistCreatorProperties.SetlistFm properties;
+	private final ExternalApiResilienceService resilienceService;
+	private final Object requestPacingLock = new Object();
+	private long nextRequestNanos;
 
-	public SetlistFmClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties) {
+	public SetlistFmClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties,
+			ExternalApiResilienceService resilienceService) {
 		this.properties = properties.setlistfm();
+		this.resilienceService = resilienceService;
 		this.restClient = restClientBuilder
 				.baseUrl(this.properties.baseUrl())
 				.defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
@@ -30,14 +40,14 @@ public class SetlistFmClient {
 	public ArtistSearchResponse searchArtists(String artistName, int page) {
 		assertApiKeyConfigured();
 		try {
-			return restClient.get()
+			return resilienceService.executeRead(SETLIST_FM, "setlist.fm artist search", () -> executePaced(() -> restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/1.0/search/artists")
 							.queryParam("artistName", artistName)
 							.queryParam("sort", "relevance")
 							.queryParam("p", page)
 							.build())
 					.retrieve()
-					.body(ArtistSearchResponse.class);
+					.body(ArtistSearchResponse.class)));
 		}
 		catch (RestClientResponseException ex) {
 			if (ex.getStatusCode().value() == 404) {
@@ -47,15 +57,33 @@ public class SetlistFmClient {
 		}
 	}
 
+	public ArtistSearchResponse searchArtistByMbid(String musicBrainzId) {
+		assertApiKeyConfigured();
+		try {
+			return resilienceService.executeRead(SETLIST_FM, "setlist.fm artist lookup", () -> executePaced(() -> restClient.get()
+					.uri(uriBuilder -> uriBuilder.path("/1.0/search/artists")
+							.queryParam("artistMbid", musicBrainzId)
+							.build())
+					.retrieve()
+					.body(ArtistSearchResponse.class)));
+		}
+		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 404) {
+				throw new SetlistFmArtistNotFoundException();
+			}
+			throw new ExternalApiException(toFailureMessage("setlist.fm artist lookup", ex), ex);
+		}
+	}
+
 	public SetlistsResponse getArtistSetlists(String musicBrainzId, int page) {
 		assertApiKeyConfigured();
 		try {
-			return restClient.get()
+			return resilienceService.executeRead(SETLIST_FM, "setlist.fm artist setlists search", () -> executePaced(() -> restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/1.0/artist/{mbid}/setlists")
 							.queryParam("p", page)
 							.build(musicBrainzId))
 					.retrieve()
-					.body(SetlistsResponse.class);
+					.body(SetlistsResponse.class)));
 		}
 		catch (RestClientResponseException ex) {
 			if (ex.getStatusCode().value() == 404) {
@@ -68,14 +96,14 @@ public class SetlistFmClient {
 	public SetlistsResponse searchSetlistsByYear(String musicBrainzId, int year, int page) {
 		assertApiKeyConfigured();
 		try {
-			return restClient.get()
+			return resilienceService.executeRead(SETLIST_FM, "setlist.fm setlists by year search", () -> executePaced(() -> restClient.get()
 					.uri(uriBuilder -> uriBuilder.path("/1.0/search/setlists")
 							.queryParam("artistMbid", musicBrainzId)
 							.queryParam("year", year)
 							.queryParam("p", page)
 							.build())
 					.retrieve()
-					.body(SetlistsResponse.class);
+					.body(SetlistsResponse.class)));
 		}
 		catch (RestClientResponseException ex) {
 			if (ex.getStatusCode().value() == 404) {
@@ -89,6 +117,27 @@ public class SetlistFmClient {
 		if (properties.apiKey() == null || properties.apiKey().isBlank()) {
 			throw new ExternalApiException("SETLISTFM_API_KEY is not configured");
 		}
+	}
+
+	private <T> T executePaced(Supplier<T> request) {
+		long waitNanos;
+		synchronized (requestPacingLock) {
+			long now = System.nanoTime();
+			waitNanos = Math.max(0, nextRequestNanos - now);
+			nextRequestNanos = Math.max(now, nextRequestNanos) + MIN_REQUEST_INTERVAL_NANOS;
+		}
+		if (waitNanos > 0) {
+			try {
+				long waitMillis = waitNanos / 1_000_000L;
+				int remainingNanos = (int) (waitNanos % 1_000_000L);
+				Thread.sleep(waitMillis, remainingNanos);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+				throw new ExternalApiException("setlist.fm request interrupted", ex);
+			}
+		}
+		return request.get();
 	}
 
 	private String toFailureMessage(String operation, RestClientResponseException ex) {

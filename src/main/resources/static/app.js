@@ -13,7 +13,9 @@ const THEMES = {
 
 const state = {
 	loggedIn: false,
+	csrfToken: null,
 	theme: "light",
+	setlistArtists: null,
 	preview: null,
 	genreArtists: null,
 	genreTracks: null,
@@ -61,6 +63,10 @@ const els = {
 	searchForm: document.querySelector("#searchForm"),
 	artistName: document.querySelector("#artistName"),
 	message: document.querySelector("#message"),
+	setlistArtistResults: document.querySelector("#setlistArtistResults"),
+	setlistArtistSearchTitle: document.querySelector("#setlistArtistSearchTitle"),
+	setlistArtistCount: document.querySelector("#setlistArtistCount"),
+	setlistArtistList: document.querySelector("#setlistArtistList"),
 	results: document.querySelector("#results"),
 	artistTitle: document.querySelector("#artistTitle"),
 	artistLink: document.querySelector("#artistLink"),
@@ -69,6 +75,7 @@ const els = {
 	songList: document.querySelector("#songList"),
 	setlistList: document.querySelector("#setlistList"),
 	openCreatePanel: document.querySelector("#openCreatePanel"),
+	openCreatePanelBottom: document.querySelector("#openCreatePanelBottom"),
 	genreArtistForm: document.querySelector("#genreArtistForm"),
 	genreName: document.querySelector("#genreName"),
 	genreArtistLimit: document.querySelector("#genreArtistLimit"),
@@ -175,7 +182,7 @@ async function init() {
 
 function bindEvents() {
 	bindSubmit(els.searchForm, async () => {
-		await previewArtist(els.artistName.value.trim());
+		await previewSetlistArtists();
 	});
 
 	bindSubmit(els.genreArtistForm, async () => {
@@ -207,6 +214,7 @@ function bindEvents() {
 	});
 
 	bindClick(els.openCreatePanel, () => openSetlistCreateDialog());
+	bindClick(els.openCreatePanelBottom, () => openSetlistCreateDialog());
 	bindClick(els.openGenreCreatePanel, () => openGenreCreateDialog());
 	bindClick(els.openGenreCreatePanelBottom, () => openGenreCreateDialog());
 	bindClick(els.openDiscographyCreatePanel, () => openDiscographyCreateDialog());
@@ -322,13 +330,22 @@ async function refreshStatus() {
 		const response = await fetch("/spotify/status");
 		const status = await response.json();
 		state.loggedIn = Boolean(status.loggedIn);
+		state.csrfToken = status.csrfToken || null;
 		renderStatus();
 	}
 	catch (error) {
 		state.loggedIn = false;
+		state.csrfToken = null;
 		renderStatus();
 		showMessage("Unable to verify your Spotify login status.", true);
 	}
+}
+
+function csrfHeaders(headers = {}) {
+	if (!state.csrfToken) {
+		return headers;
+	}
+	return { ...headers, "X-XSRF-TOKEN": state.csrfToken };
 }
 
 function renderStatus() {
@@ -376,27 +393,91 @@ function showLoginHintFromQuery() {
 	}
 }
 
-async function previewArtist(artistName) {
+async function previewSetlistArtists() {
+	const artistName = els.artistName.value.trim();
 	if (!artistName) {
 		showMessage("Enter an artist name.", true);
 		return;
 	}
 	setBusy(els.searchForm, true);
 	hideMessage();
+	els.setlistArtistResults.classList.add("hidden");
 	els.results.classList.add("hidden");
-	showLoading("Searching setlists", `Loading recent setlists for ${artistName}...`);
+	state.setlistArtists = null;
+	state.preview = null;
+	showLoading("Searching artists", `Searching setlist.fm artists whose names contain "${artistName}"...`);
 	try {
-		const response = await fetch(`/api/playlists/preview?artistName=${encodeURIComponent(artistName)}`);
+		const response = await fetch(`/api/playlists/artists?artistName=${encodeURIComponent(artistName)}`);
+		const payload = await parseJsonResponse(response);
+		state.setlistArtists = payload;
+		if (payload.artistCount === 1) {
+			await previewArtist(payload.artists[0]);
+			return;
+		}
+		renderSetlistArtists(payload);
+	}
+	catch (error) {
+		showMessage(error.message || "Artist search failed.", error.type !== "warning");
+	}
+	finally {
+		hideLoading();
+		setBusy(els.searchForm, false);
+	}
+}
+
+function renderSetlistArtists(payload) {
+	els.setlistArtistSearchTitle.textContent = `Results for "${payload.query}"`;
+	els.setlistArtistCount.textContent = `${payload.artistCount} artists`;
+	els.setlistArtistList.replaceChildren(...payload.artists.map((artist) => {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "discography-artist-item";
+		const disambiguation = artist.disambiguation
+			? `<span class="song-meta">${escapeHtml(artist.disambiguation)}</span>`
+			: "";
+		button.innerHTML = `
+			<span>
+				<span class="discography-artist-name">${escapeHtml(artist.name)}</span>
+				${disambiguation}
+			</span>
+			<span class="discography-artist-action">Select</span>
+		`;
+		button.addEventListener("click", async () => {
+			await previewArtist(artist);
+		});
+		return button;
+	}));
+	els.setlistArtistResults.classList.remove("hidden");
+}
+
+async function previewArtist(artist) {
+	if (!artist || !artist.musicBrainzId || !artist.name) {
+		showMessage("Select a valid artist.", true);
+		return;
+	}
+	hideMessage();
+	els.setlistArtistResults.classList.add("hidden");
+	els.results.classList.add("hidden");
+	state.preview = null;
+	showLoading("Searching setlists", `Loading recent setlists for ${artist.name}...`);
+	try {
+		const params = new URLSearchParams({
+			artistName: artist.name,
+			artistMbid: artist.musicBrainzId,
+		});
+		const response = await fetch(`/api/playlists/preview?${params.toString()}`);
 		const payload = await parseJsonResponse(response);
 		state.preview = payload;
 		renderPreview(payload);
 	}
 	catch (error) {
-		showMessage(error.message || "Search failed.", error.type !== "warning");
+		if (state.setlistArtists && state.setlistArtists.artistCount > 1) {
+			els.setlistArtistResults.classList.remove("hidden");
+		}
+		showMessage(error.message || "Setlist search failed.", error.type !== "warning");
 	}
 	finally {
 		hideLoading();
-		setBusy(els.searchForm, false);
 	}
 }
 
@@ -492,13 +573,13 @@ function renderGenreArtists(payload) {
 }
 
 async function previewGenreTracks() {
-	const genre = els.genreName.value.trim();
-	const artistLimit = Number(els.genreArtistLimit.value);
-	const tracksPerArtist = Number(els.tracksPerArtist.value);
 	if (!state.genreArtists) {
 		showGenreMessage("Search for genre artists first.", true);
 		return;
 	}
+	const genre = state.genreArtists.genre;
+	const artistLimit = state.genreArtists.requestedArtistCount;
+	const tracksPerArtist = Number(els.tracksPerArtist.value);
 	const selectedArtistNames = getSelectedGenreArtistNames();
 	if (!selectedArtistNames.length) {
 		showGenreMessage("Select at least one artist.", true);
@@ -511,7 +592,7 @@ async function previewGenreTracks() {
 	try {
 		const response = await fetch("/api/genre-playlists/tracks", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				genre,
 				artistLimit,
@@ -521,8 +602,8 @@ async function previewGenreTracks() {
 		});
 		console.info("Searching Last.fm genre tracks", { genre, artistLimit, tracksPerArtist });
 		const payload = await parseJsonResponse(response);
-		state.genreTracks = payload;
-		renderGenreTracks(payload);
+		state.genreTracks = { ...payload, artistLimit, tracksPerArtist };
+		renderGenreTracks(state.genreTracks);
 	}
 	catch (error) {
 		showGenreMessage(error.message || "Track search failed.", true);
@@ -695,7 +776,7 @@ async function previewDiscographyTracks() {
 	try {
 		const response = await fetch("/api/discography-playlists/tracks", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				artistId: state.discographyAlbums.artist.id,
 				artistName: state.discographyAlbums.artist.name,
@@ -954,7 +1035,7 @@ async function previewSimilarArtistTracks() {
 	try {
 		const response = await fetch("/api/similar-artists-playlists/tracks", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				sourceArtistName: state.similarArtists.sourceArtistName,
 				selectedArtistNames,
@@ -1069,7 +1150,7 @@ async function previewDiscoverSimilarArtists() {
 	try {
 		const response = await fetch("/api/discover-new-music/similar-artists", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({ selectedArtists }),
 		});
 		const payload = await parseJsonResponse(response);
@@ -1132,7 +1213,7 @@ async function previewDiscoverTracks() {
 	try {
 		const response = await fetch("/api/discover-new-music/tracks", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({ sourceArtists, selectedSimilarArtists }),
 		});
 		const payload = await parseJsonResponse(response);
@@ -1380,7 +1461,7 @@ function closeCreateDialog() {
 async function logoutSpotify() {
 	setBusy(els.logoutButton.parentElement, true);
 	try {
-		await fetch("/spotify/logout", { method: "POST" });
+		await fetch("/spotify/logout", { method: "POST", headers: csrfHeaders() });
 		resetWorkspace();
 		state.loggedIn = false;
 		state.activeView = "home";
@@ -1408,10 +1489,15 @@ function resetWorkspace() {
 }
 
 function resetSetlistSection() {
+	state.setlistArtists = null;
 	state.preview = null;
 	els.artistName.value = "";
 	hideMessage();
+	els.setlistArtistResults.classList.add("hidden");
 	els.results.classList.add("hidden");
+	els.setlistArtistSearchTitle.textContent = "";
+	els.setlistArtistCount.textContent = "";
+	els.setlistArtistList.replaceChildren();
 	els.artistTitle.textContent = "";
 	els.artistLink.removeAttribute("href");
 	els.songCount.textContent = "0";
@@ -1557,8 +1643,9 @@ async function createSetlistPlaylist() {
 	try {
 		const response = await fetch("/api/playlists/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
+				artistMbid: state.preview.artist.musicBrainzId,
 				artistName: state.preview.artist.name,
 				selectedTracks,
 				playlistName: els.playlistName.value.trim(),
@@ -1604,12 +1691,12 @@ async function createGenrePlaylist() {
 	try {
 		const response = await fetch("/api/genre-playlists/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				genre: state.genreTracks.genre,
-				artistLimit: Number(els.genreArtistLimit.value),
+				artistLimit: state.genreTracks.artistLimit,
 				selectedArtistNames: state.genreTracks.artists.map((artist) => artist.name),
-				tracksPerArtist: Number(els.tracksPerArtist.value),
+				tracksPerArtist: state.genreTracks.tracksPerArtist,
 				selectedTracks,
 				playlistName: els.playlistName.value.trim(),
 				playlistDescription: els.playlistDescription.value.trim(),
@@ -1654,7 +1741,7 @@ async function createDiscographyPlaylist() {
 	try {
 		const response = await fetch("/api/discography-playlists/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				artistId: state.discographyAlbums.artist.id,
 				artistName: state.discographyTracks.artistName,
@@ -1704,7 +1791,7 @@ async function createTopTracksPlaylist() {
 	try {
 		const response = await fetch("/api/top-tracks-playlists/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				trackLimit: state.topTracks.requestedTrackCount,
 				months: state.topTracks.months,
@@ -1752,7 +1839,7 @@ async function createSimilarArtistsPlaylist() {
 	try {
 		const response = await fetch("/api/similar-artists-playlists/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				sourceArtistName: state.similarArtistTracks.sourceArtistName,
 				selectedArtistNames: state.similarArtistTracks.artists.map((artist) => artist.name),
@@ -1801,7 +1888,7 @@ async function createDiscoverPlaylist() {
 	try {
 		const response = await fetch("/api/discover-new-music/generate", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: csrfHeaders({ "Content-Type": "application/json" }),
 			body: JSON.stringify({
 				sourceArtists: state.discoverSourceArtists,
 				selectedSimilarArtists: state.discoverSelectedSimilarArtists,

@@ -38,9 +38,14 @@ public class PlaylistGenerationService {
 
 	public GeneratePlaylistResponse generatePlaylist(String accessToken, String artistName, String playlistName,
 			String playlistDescription, List<SelectedTrackRequest> selectedTracks) {
+		return generatePlaylist(accessToken, null, artistName, playlistName, playlistDescription, selectedTracks);
+	}
+
+	public GeneratePlaylistResponse generatePlaylist(String accessToken, String artistMbid, String artistName,
+			String playlistName, String playlistDescription, List<SelectedTrackRequest> selectedTracks) {
 		log.info("Starting playlist generation. artistName={}, requestedPlaylistName={}",
 				artistName, playlistName);
-		SetlistSelection fullSelection = setlistService.selectProbableSongs(artistName);
+		SetlistSelection fullSelection = setlistService.selectProbableSongs(artistMbid, artistName);
 		Set<String> selectedTitles = selectedTitleKeys(selectedTracks);
 		var filteredSongs = fullSelection.recentSongs().stream()
 				.filter(song -> selectedTitles.contains(songNormalizer.normalizeTitle(song.title())))

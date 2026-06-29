@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.SpotifyAuthenticationException;
+import com.application.playlistcreator.service.ExternalApiResilienceService;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -13,14 +14,19 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import static com.application.playlistcreator.service.ExternalApiResilienceService.Provider.SPOTIFY_ACCOUNTS;
+
 @Component
 public class SpotifyAccountsClient {
 
 	private final RestClient restClient;
 	private final PlaylistCreatorProperties.Spotify properties;
+	private final ExternalApiResilienceService resilienceService;
 
-	public SpotifyAccountsClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties) {
+	public SpotifyAccountsClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties,
+			ExternalApiResilienceService resilienceService) {
 		this.properties = properties.spotify();
+		this.resilienceService = resilienceService;
 		this.restClient = restClientBuilder
 				.baseUrl(this.properties.accountsBaseUrl())
 				.build();
@@ -59,13 +65,13 @@ public class SpotifyAccountsClient {
 	private TokenResponse requestToken(MultiValueMap<String, String> body) {
 		assertClientConfigured();
 		try {
-			return restClient.post()
+			return resilienceService.executeWrite(SPOTIFY_ACCOUNTS, "Spotify token request", () -> restClient.post()
 					.uri("/api/token")
 					.headers(headers -> headers.setBasicAuth(properties.clientId(), properties.clientSecret()))
 					.contentType(MediaType.APPLICATION_FORM_URLENCODED)
 					.body(body)
 					.retrieve()
-					.body(TokenResponse.class);
+					.body(TokenResponse.class));
 		}
 		catch (RestClientResponseException ex) {
 			throw new SpotifyAuthenticationException("Spotify token request failed: " + ex.getStatusCode());

@@ -4,12 +4,16 @@ import java.util.List;
 
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.ExternalApiRateLimitException;
+import com.application.playlistcreator.service.ExternalApiResilienceService;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+
+import static com.application.playlistcreator.service.ExternalApiResilienceService.Provider.LAST_FM;
 
 @Component
 public class LastFmClient {
@@ -18,9 +22,12 @@ public class LastFmClient {
 
 	private final RestClient restClient;
 	private final PlaylistCreatorProperties.LastFm properties;
+	private final ExternalApiResilienceService resilienceService;
 
-	public LastFmClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties) {
+	public LastFmClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties,
+			ExternalApiResilienceService resilienceService) {
 		this.properties = properties.lastfm();
+		this.resilienceService = resilienceService;
 		this.restClient = restClientBuilder
 				.baseUrl(properties.lastfm().baseUrl())
 				.build();
@@ -29,7 +36,7 @@ public class LastFmClient {
 	public TopArtistsResponse getTopArtists(String genre, int limit) {
 		try {
 			log.info("Calling Last.fm top artists endpoint. genre={}, limit={}", genre, limit);
-			TopArtistsResponse response = restClient.get()
+			TopArtistsResponse response = resilienceService.executeRead(LAST_FM, "Last.fm top artists search", () -> restClient.get()
 					.uri(uriBuilder -> uriBuilder
 							.queryParam("method", "tag.gettopartists")
 							.queryParam("tag", genre)
@@ -38,7 +45,7 @@ public class LastFmClient {
 							.queryParam("format", "json")
 							.build())
 					.retrieve()
-					.body(TopArtistsResponse.class);
+					.body(TopArtistsResponse.class));
 			throwIfApiError("Last.fm top artists search", response != null ? response.error() : null,
 					response != null ? response.message() : null);
 			return response;
@@ -59,7 +66,7 @@ public class LastFmClient {
 	private TagInfoResponse getTagInfo(String genre, boolean autocorrect) {
 		try {
 			log.info("Calling Last.fm tag info endpoint. genre={}, autocorrect={}", genre, autocorrect);
-			TagInfoResponse response = restClient.get()
+			TagInfoResponse response = resilienceService.executeRead(LAST_FM, "Last.fm tag info search", () -> restClient.get()
 					.uri(uriBuilder -> uriBuilder
 							.queryParam("method", "tag.getinfo")
 							.queryParam("tag", genre)
@@ -68,7 +75,7 @@ public class LastFmClient {
 							.queryParam("format", "json")
 							.build())
 					.retrieve()
-					.body(TagInfoResponse.class);
+					.body(TagInfoResponse.class));
 			throwIfApiError("Last.fm tag info search", response != null ? response.error() : null,
 					response != null ? response.message() : null);
 			return response;
@@ -82,7 +89,7 @@ public class LastFmClient {
 		try {
 			log.info("Calling Last.fm artist top tags endpoint. artistName={}, musicBrainzId={}",
 					artistName, musicBrainzId);
-			TopTagsResponse response = restClient.get()
+			TopTagsResponse response = resilienceService.executeRead(LAST_FM, "Last.fm artist top tags search", () -> restClient.get()
 					.uri(uriBuilder -> {
 						var builder = uriBuilder
 								.queryParam("method", "artist.gettoptags")
@@ -98,7 +105,7 @@ public class LastFmClient {
 						return builder.build();
 					})
 					.retrieve()
-					.body(TopTagsResponse.class);
+					.body(TopTagsResponse.class));
 			throwIfApiError("Last.fm artist top tags search", response != null ? response.error() : null,
 					response != null ? response.message() : null);
 			return response;
@@ -111,7 +118,7 @@ public class LastFmClient {
 	public SimilarArtistsResponse getSimilarArtists(String artistName, int limit) {
 		try {
 			log.info("Calling Last.fm similar artists endpoint. artistName={}, limit={}", artistName, limit);
-			SimilarArtistsResponse response = restClient.get()
+			SimilarArtistsResponse response = resilienceService.executeRead(LAST_FM, "Last.fm similar artists search", () -> restClient.get()
 					.uri(uriBuilder -> uriBuilder
 							.queryParam("method", "artist.getsimilar")
 							.queryParam("artist", artistName)
@@ -121,7 +128,7 @@ public class LastFmClient {
 							.queryParam("format", "json")
 							.build())
 					.retrieve()
-					.body(SimilarArtistsResponse.class);
+					.body(SimilarArtistsResponse.class));
 			throwIfApiError("Last.fm similar artists search", response != null ? response.error() : null,
 					response != null ? response.message() : null);
 			return response;
@@ -139,7 +146,7 @@ public class LastFmClient {
 		try {
 			log.info("Calling Last.fm artist top tracks endpoint. artistName={}, limit={}, page={}",
 					artistName, limit, page);
-			TopTracksResponse response = restClient.get()
+			TopTracksResponse response = resilienceService.executeRead(LAST_FM, "Last.fm artist top tracks search", () -> restClient.get()
 					.uri(uriBuilder -> uriBuilder
 							.queryParam("method", "artist.gettoptracks")
 							.queryParam("artist", artistName)
@@ -150,7 +157,7 @@ public class LastFmClient {
 							.queryParam("format", "json")
 							.build())
 					.retrieve()
-					.body(TopTracksResponse.class);
+					.body(TopTracksResponse.class));
 			throwIfApiError("Last.fm artist top tracks search", response != null ? response.error() : null,
 					response != null ? response.message() : null);
 			return response;
@@ -167,6 +174,10 @@ public class LastFmClient {
 		if (errorCode == 29) {
 			log.error("Last.fm rate limit exceeded. operation={}, errorCode={}, message={}",
 					operation, errorCode, message);
+			throw new ExternalApiRateLimitException(
+					"Last.fm has temporarily reached its request limit. Please wait a little before trying again.",
+					null,
+					null);
 		}
 		else {
 			log.error("Last.fm API error. operation={}, errorCode={}, message={}",

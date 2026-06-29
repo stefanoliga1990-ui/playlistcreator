@@ -4,11 +4,13 @@ import java.net.URI;
 import java.util.Map;
 
 import com.application.playlistcreator.service.SpotifyOAuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,6 +39,7 @@ public class SpotifyOAuthController {
 	public ResponseEntity<Void> callback(@RequestParam(required = false) String code,
 			@RequestParam(required = false) String state,
 			@RequestParam(required = false) String error,
+			HttpServletRequest request,
 			HttpSession session) {
 		if (error != null && !error.isBlank()) {
 			log.warn("Spotify OAuth callback returned error. sessionId={}, error={}", session.getId(), error);
@@ -45,15 +48,18 @@ public class SpotifyOAuthController {
 		log.info("Handling Spotify OAuth callback. sessionId={}, hasCode={}, hasState={}",
 				session.getId(), code != null && !code.isBlank(), state != null && !state.isBlank());
 		spotifyOAuthService.handleCallback(code, state, session);
-		log.info("Spotify OAuth completed. sessionId={}", session.getId());
+		String previousSessionId = session.getId();
+		request.changeSessionId();
+		log.info("Spotify OAuth completed and session id rotated. previousSessionId={}, sessionId={}",
+				previousSessionId, session.getId());
 		return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/?spotifyLogin=success")).build();
 	}
 
 	@GetMapping("/spotify/status")
-	public Map<String, Object> status(HttpSession session) {
+	public Map<String, Object> status(HttpSession session, CsrfToken csrfToken) {
 		boolean loggedIn = spotifyOAuthService.isLoggedIn(session);
 		log.debug("Spotify status requested. sessionId={}, loggedIn={}", session.getId(), loggedIn);
-		return Map.of("loggedIn", loggedIn);
+		return Map.of("loggedIn", loggedIn, "csrfToken", csrfToken.getToken());
 	}
 
 	@PostMapping("/spotify/logout")

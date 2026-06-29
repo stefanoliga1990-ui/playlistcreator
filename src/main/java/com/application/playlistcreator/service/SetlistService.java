@@ -1,7 +1,6 @@
 package com.application.playlistcreator.service;
 
 import java.time.LocalDate;
-import java.time.Instant;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -16,12 +15,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import com.application.playlistcreator.client.setlistfm.SetlistFmClient;
 import com.application.playlistcreator.client.setlistfm.SetlistFmClient.Artist;
 import com.application.playlistcreator.client.setlistfm.SetlistFmClient.Setlist;
+import com.application.playlistcreator.config.BoundedCacheFactory;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.NoRecentSetlistsException;
 import com.application.playlistcreator.exception.SetlistFmArtistNotFoundException;
@@ -30,6 +29,7 @@ import com.application.playlistcreator.model.CandidateSong;
 import com.application.playlistcreator.model.ConcertSetlist;
 import com.application.playlistcreator.model.SetlistSelection;
 import com.application.playlistcreator.model.SetlistSong;
+import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,6 +41,9 @@ public class SetlistService {
 
 	private static final DateTimeFormatter SETLIST_DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 	private static final Duration SELECTION_CACHE_TTL = Duration.ofMinutes(10);
+	private static final long SELECTION_CACHE_MAX_SIZE = 500;
+	private static final Duration ARTIST_CACHE_TTL = Duration.ofMinutes(30);
+	private static final long ARTIST_CACHE_MAX_SIZE = 1_000;
 	private static final List<String> NON_MUSICAL_TITLE_TOKENS = List.of(
 			"doodle",
 			"jam",
@@ -55,7 +58,12 @@ public class SetlistService {
 	private final SetlistFmClient setlistFmClient;
 	private final PlaylistCreatorProperties.SetlistFm properties;
 	private final SongNormalizer songNormalizer;
-	private final Map<String, CachedSelection> selectionCache = new ConcurrentHashMap<>();
+	private final Cache<String, SetlistSelection> selectionCache = BoundedCacheFactory.create(
+			SELECTION_CACHE_TTL, SELECTION_CACHE_MAX_SIZE);
+	private final Cache<String, ArtistSearchResult> artistSearchCache = BoundedCacheFactory.create(
+			ARTIST_CACHE_TTL, ARTIST_CACHE_MAX_SIZE);
+	private final Cache<String, ArtistCandidate> artistByMbidCache = BoundedCacheFactory.create(
+			ARTIST_CACHE_TTL, ARTIST_CACHE_MAX_SIZE);
 
 	public SetlistService(SetlistFmClient setlistFmClient, PlaylistCreatorProperties properties,
 			SongNormalizer songNormalizer) {
@@ -65,19 +73,81 @@ public class SetlistService {
 	}
 
 	public SetlistSelection selectProbableSongs(String artistName) {
-		String cacheKey = songNormalizer.normalizeArtist(artistName);
-		CachedSelection cachedSelection = selectionCache.get(cacheKey);
-		if (cachedSelection != null && cachedSelection.isValid()) {
-			log.info("Using cached setlist selection. artistName={}, cacheKey={}, recentSongs={}",
-					artistName, cacheKey, cachedSelection.selection().recentSongs().size());
-			return cachedSelection.selection();
+		String cacheKey = "name:" + songNormalizer.normalizeArtist(artistName);
+		return selectProbableSongs(findBestArtist(artistName), artistName, cacheKey);
+	}
+
+	public SetlistSelection selectProbableSongs(String musicBrainzId, String artistName) {
+		if (musicBrainzId == null || musicBrainzId.isBlank()) {
+			return selectProbableSongs(artistName);
 		}
-		log.info("Building setlist selection. artistName={}, cacheKey={}", artistName, cacheKey);
-		ArtistCandidate artist = findBestArtist(artistName);
+		String cacheKey = "mbid:" + musicBrainzId.trim();
+		SetlistSelection cachedSelection = selectionCache.getIfPresent(cacheKey);
+		if (cachedSelection != null) {
+			log.info("Using cached setlist selection. artistName={}, mbid={}, recentSongs={}",
+					artistName, musicBrainzId, cachedSelection.recentSongs().size());
+			return cachedSelection;
+		}
+		ArtistCandidate artist = findArtistByMbid(musicBrainzId.trim());
+		return selectProbableSongs(artist, artistName, cacheKey);
+	}
+
+	public ArtistSearchResult findArtists(String artistName) {
+		if (artistName == null || artistName.isBlank()) {
+			throw new SetlistFmArtistNotFoundException();
+		}
+		String query = artistName.trim();
+		String normalizedQuery = songNormalizer.normalizeArtist(query);
+		ArtistSearchResult cachedResult = artistSearchCache.getIfPresent(normalizedQuery);
+		if (cachedResult != null) {
+			log.info("Using cached setlist.fm artist search. query={}, matchingArtists={}",
+					query, cachedResult.artists().size());
+			return cachedResult;
+		}
+		log.info("Searching setlist.fm artists for selection. artistName={}", query);
+		var response = setlistFmClient.searchArtists(query, 1);
+		List<Artist> responseArtists = response != null && response.artist() != null
+				? response.artist()
+				: List.of();
+		Map<String, ArtistSearchResult.Artist> uniqueArtists = new LinkedHashMap<>();
+		responseArtists.stream()
+				.filter(artist -> artist != null
+						&& artist.mbid() != null && !artist.mbid().isBlank()
+						&& artist.name() != null
+						&& songNormalizer.normalizeArtist(artist.name()).contains(normalizedQuery))
+				.sorted(Comparator.comparingInt((Artist artist) -> artistSearchScore(normalizedQuery, artist)).reversed())
+				.forEach(artist -> uniqueArtists.putIfAbsent(
+						artist.mbid(),
+						new ArtistSearchResult.Artist(
+								artist.mbid(), artist.name(), artist.disambiguation(), artist.url())));
+		List<ArtistSearchResult.Artist> artists = List.copyOf(uniqueArtists.values());
+		if (artists.isEmpty()) {
+			throw new SetlistFmArtistNotFoundException();
+		}
+		log.info("setlist.fm artists ready for selection. query={}, candidates={}, matchingArtists={}",
+				query, responseArtists.size(), artists.size());
+		responseArtists.stream()
+				.filter(artist -> artist != null && artist.mbid() != null && !artist.mbid().isBlank())
+				.map(this::toArtistCandidate)
+				.forEach(artist -> artistByMbidCache.put(artist.musicBrainzId(), artist));
+		ArtistSearchResult result = new ArtistSearchResult(query, artists);
+		artistSearchCache.put(normalizedQuery, result);
+		return result;
+	}
+
+	private SetlistSelection selectProbableSongs(ArtistCandidate artist, String requestedArtistName, String cacheKey) {
+		SetlistSelection cachedSelection = selectionCache.getIfPresent(cacheKey);
+		if (cachedSelection != null) {
+			log.info("Using cached setlist selection. artistName={}, cacheKey={}, recentSongs={}",
+					requestedArtistName, cacheKey, cachedSelection.recentSongs().size());
+			return cachedSelection;
+		}
+		log.info("Building setlist selection. artistName={}, resolvedArtist={}, mbid={}, cacheKey={}",
+				requestedArtistName, artist.name(), artist.musicBrainzId(), cacheKey);
 		List<ConcertSetlist> validSetlists = loadValidRecentSetlists(artist.musicBrainzId());
 		if (validSetlists.isEmpty()) {
 			log.warn("No valid recent setlists found. artistName={}, resolvedArtist={}, maxAgeMonths={}",
-					artistName, artist.name(), properties.maxAgeMonths());
+					requestedArtistName, artist.name(), properties.maxAgeMonths());
 			throw new NoRecentSetlistsException(
 					"No setlists were found for " + artist.name() + " in the last "
 							+ properties.maxAgeMonths() + " months.");
@@ -85,10 +155,32 @@ public class SetlistService {
 		List<ConcertSetlist> selectedSetlists = validSetlists.stream().limit(3).toList();
 		List<CandidateSong> recentSongs = findRecentSongs(selectedSetlists);
 		SetlistSelection selection = new SetlistSelection(artist, selectedSetlists, recentSongs);
-		selectionCache.put(cacheKey, new CachedSelection(selection, Instant.now()));
+		selectionCache.put(cacheKey, selection);
 		log.info("Setlist selection built. artist={}, setlists={}, recentSongs={}",
 				artist.name(), selectedSetlists.size(), recentSongs.size());
 		return selection;
+	}
+
+	private ArtistCandidate findArtistByMbid(String musicBrainzId) {
+		ArtistCandidate cachedArtist = artistByMbidCache.getIfPresent(musicBrainzId);
+		if (cachedArtist != null) {
+			log.info("Using cached setlist.fm artist. artist={}, mbid={}", cachedArtist.name(), musicBrainzId);
+			return cachedArtist;
+		}
+		log.info("Looking up selected setlist.fm artist. mbid={}", musicBrainzId);
+		var response = setlistFmClient.searchArtistByMbid(musicBrainzId);
+		Artist artist = response != null && response.artist() != null
+				? response.artist().stream()
+						.filter(candidate -> musicBrainzId.equals(candidate.mbid()))
+						.findFirst()
+						.orElse(null)
+				: null;
+		if (artist == null) {
+			throw new SetlistFmArtistNotFoundException();
+		}
+		ArtistCandidate candidate = toArtistCandidate(artist);
+		artistByMbidCache.put(musicBrainzId, candidate);
+		return candidate;
 	}
 
 	private ArtistCandidate findBestArtist(String artistName) {
@@ -105,8 +197,23 @@ public class SetlistService {
 				.orElseThrow();
 		log.info("setlist.fm artist resolved. requested={}, resolved={}, mbid={}, candidates={}",
 				artistName, bestArtist.name(), bestArtist.mbid(), artists.size());
-		return new ArtistCandidate(bestArtist.mbid(), bestArtist.name(), bestArtist.sortName(),
-				bestArtist.disambiguation(), bestArtist.url());
+		return toArtistCandidate(bestArtist);
+	}
+
+	private ArtistCandidate toArtistCandidate(Artist artist) {
+		return new ArtistCandidate(artist.mbid(), artist.name(), artist.sortName(),
+				artist.disambiguation(), artist.url());
+	}
+
+	private int artistSearchScore(String requested, Artist artist) {
+		String candidate = songNormalizer.normalizeArtist(artist.name());
+		if (candidate.equals(requested)) {
+			return 100;
+		}
+		if (candidate.startsWith(requested)) {
+			return 80;
+		}
+		return 60;
 	}
 
 	private int artistScore(String requested, Artist artist) {
@@ -119,6 +226,12 @@ public class SetlistService {
 			return 80;
 		}
 		return tokenOverlapScore(requested, name);
+	}
+
+	public record ArtistSearchResult(String query, List<Artist> artists) {
+
+		public record Artist(String musicBrainzId, String name, String disambiguation, String setlistFmUrl) {
+		}
 	}
 
 	private List<ConcertSetlist> loadValidRecentSetlists(String musicBrainzId) {
@@ -330,10 +443,4 @@ public class SetlistService {
 				.anyMatch(token -> normalizedTitle.contains(token) || normalizedOriginal.contains(token));
 	}
 
-	private record CachedSelection(SetlistSelection selection, Instant createdAt) {
-
-		boolean isValid() {
-			return createdAt.plus(SELECTION_CACHE_TTL).isAfter(Instant.now());
-		}
-	}
 }

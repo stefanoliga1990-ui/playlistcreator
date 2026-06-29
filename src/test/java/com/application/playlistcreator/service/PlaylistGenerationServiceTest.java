@@ -29,7 +29,7 @@ class PlaylistGenerationServiceTest {
 		SpotifyApiClient spotify = mock(SpotifyApiClient.class);
 		CandidateSong first = song("Song One", 1);
 		CandidateSong second = song("Song Two", 2);
-		when(setlistService.selectProbableSongs("Test Artist"))
+		when(setlistService.selectProbableSongs(null, "Test Artist"))
 				.thenReturn(new SetlistSelection(
 						new ArtistCandidate("mbid", "Test Artist", "Test Artist", null, "url"),
 						List.of(),

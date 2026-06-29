@@ -3,7 +3,11 @@ package com.application.playlistcreator.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -101,6 +105,84 @@ class SetlistServiceTest {
 				.hasMessage("Artist not found on setlist.fm");
 	}
 
+	@Test
+	void returnsAllArtistNamesContainingTheSearchQuery() {
+		SetlistFmClient client = mock(SetlistFmClient.class);
+		when(client.searchArtists("Pippo", 1))
+				.thenReturn(new SetlistFmClient.ArtistSearchResponse(
+						4,
+						20,
+						1,
+						List.of(
+								new SetlistFmClient.Artist("pollina", "Pippo Pollina", null, "Italian singer", "url/1"),
+								new SetlistFmClient.Artist("other", "Unrelated Artist", null, null, "url/2"),
+								new SetlistFmClient.Artist("pippo", "Pippo", null, null, "url/3"),
+								new SetlistFmClient.Artist("sowlo", "Pippo Sowlo", null, null, "url/4"))));
+		SetlistService service = new SetlistService(client, properties(), new SongNormalizer());
+
+		var result = service.findArtists("Pippo");
+		var cachedResult = service.findArtists("pippo");
+
+		assertThat(result.artists())
+				.extracting(artist -> artist.name())
+				.containsExactly("Pippo", "Pippo Pollina", "Pippo Sowlo");
+		assertThat(cachedResult).isSameAs(result);
+		verify(client, times(1)).searchArtists("Pippo", 1);
+	}
+
+	@Test
+	void reusesArtistDetailsFromSearchWhenLoadingTheSelectedArtist() {
+		SetlistFmClient client = mock(SetlistFmClient.class);
+		when(client.searchArtists("Pippo", 1))
+				.thenReturn(new SetlistFmClient.ArtistSearchResponse(
+						1, 20, 1, List.of(new SetlistFmClient.Artist(
+								"selected-mbid", "Pippo Sowlo", "Pippo Sowlo", null, "artist-url"))));
+		when(client.getArtistSetlists("selected-mbid", 1))
+				.thenReturn(new SetlistFmClient.SetlistsResponse(
+						3,
+						20,
+						1,
+						List.of(
+								setlist("recent-1", LocalDate.now().minusDays(10)),
+								setlist("recent-2", LocalDate.now().minusDays(20)),
+								setlist("recent-3", LocalDate.now().minusDays(30)))));
+		SetlistService service = new SetlistService(client, properties(), new SongNormalizer());
+
+		service.findArtists("Pippo");
+		var selection = service.selectProbableSongs("selected-mbid", "Pippo Sowlo");
+
+		assertThat(selection.artist().name()).isEqualTo("Pippo Sowlo");
+		verify(client, never()).searchArtistByMbid("selected-mbid");
+	}
+
+	@Test
+	void loadsSetlistsForTheArtistMbidSelectedByTheUser() {
+		SetlistFmClient client = mock(SetlistFmClient.class);
+		when(client.searchArtistByMbid("selected-mbid"))
+				.thenReturn(new SetlistFmClient.ArtistSearchResponse(
+						1,
+						20,
+						1,
+						List.of(new SetlistFmClient.Artist(
+								"selected-mbid", "Pippo Sowlo", "Pippo Sowlo", null, "artist-url"))));
+		when(client.getArtistSetlists("selected-mbid", 1))
+				.thenReturn(new SetlistFmClient.SetlistsResponse(
+						3,
+						20,
+						1,
+						List.of(
+								setlist("recent-1", LocalDate.now().minusDays(10)),
+								setlist("recent-2", LocalDate.now().minusDays(20)),
+								setlist("recent-3", LocalDate.now().minusDays(30)))));
+		SetlistService service = new SetlistService(client, properties(), new SongNormalizer());
+
+		var selection = service.selectProbableSongs("selected-mbid", "Pippo Sowlo");
+
+		assertThat(selection.artist().musicBrainzId()).isEqualTo("selected-mbid");
+		assertThat(selection.artist().name()).isEqualTo("Pippo Sowlo");
+		verify(client, never()).searchArtists(anyString(), anyInt());
+	}
+
 	private SetlistFmClient clientWithSetlists(List<SetlistFmClient.Setlist> setlists) {
 		SetlistFmClient client = mock(SetlistFmClient.class);
 		when(client.searchArtists("Test Artist", 1))
@@ -145,6 +227,7 @@ class SetlistServiceTest {
 	private PlaylistCreatorProperties properties() {
 		return new PlaylistCreatorProperties(
 				new PlaylistCreatorProperties.SetlistFm("", "", "", 1, 6, 6),
+				null,
 				null,
 				null,
 				null);

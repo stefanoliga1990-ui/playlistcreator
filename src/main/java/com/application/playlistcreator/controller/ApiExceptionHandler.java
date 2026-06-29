@@ -1,6 +1,7 @@
 package com.application.playlistcreator.controller;
 
 import com.application.playlistcreator.exception.ExternalApiException;
+import com.application.playlistcreator.exception.ExternalApiRateLimitException;
 import com.application.playlistcreator.exception.ExternalApiUnavailableException;
 import com.application.playlistcreator.exception.NoRecentSetlistsException;
 import com.application.playlistcreator.exception.SpotifyAuthenticationException;
@@ -11,6 +12,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+	@ExceptionHandler(ExternalApiRateLimitException.class)
+	public ResponseEntity<ApiError> handleExternalApiRateLimit(ExternalApiRateLimitException ex) {
+		ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+		if (ex.retryAfterSeconds() != null) {
+			response.header("Retry-After", String.valueOf(ex.retryAfterSeconds()));
+		}
+		return response.body(new ApiError(ex.getMessage(), "warning"));
+	}
 
 	@ExceptionHandler(SpotifyAuthenticationException.class)
 	public ResponseEntity<ApiError> handleSpotifyAuthentication(SpotifyAuthenticationException ex) {

@@ -1,7 +1,6 @@
 package com.application.playlistcreator.service;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.YearMonth;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import com.application.playlistcreator.client.lastfm.LastFmClient;
@@ -23,10 +21,12 @@ import com.application.playlistcreator.client.spotify.SpotifyApiClient;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient.SimplifiedAlbum;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient.SimplifiedTrack;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyArtist;
+import com.application.playlistcreator.config.BoundedCacheFactory;
 import com.application.playlistcreator.dto.SelectedTrackRequest;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.model.DiscographyAlbum;
 import com.application.playlistcreator.model.DiscographyTrack;
+import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,6 +36,8 @@ public class DiscographyPlaylistService {
 
 	private static final Logger log = LoggerFactory.getLogger(DiscographyPlaylistService.class);
 	private static final Duration CACHE_TTL = Duration.ofMinutes(30);
+	private static final long ALBUM_CACHE_MAX_SIZE = 500;
+	private static final long TRACK_CACHE_MAX_SIZE = 1000;
 	private static final int SPOTIFY_ALBUM_PAGE_SIZE = 10;
 	private static final int SPOTIFY_TRACK_PAGE_SIZE = 50;
 	private static final int LASTFM_TRACK_LIMIT = 1000;
@@ -62,8 +64,10 @@ public class DiscographyPlaylistService {
 	private final SpotifyApiClient spotifyApiClient;
 	private final LastFmClient lastFmClient;
 	private final SongNormalizer songNormalizer;
-	private final Map<String, CachedAlbumSearch> albumCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedTrackSelection> trackCache = new ConcurrentHashMap<>();
+	private final Cache<String, AlbumSearchResult> albumCache = BoundedCacheFactory.create(
+			CACHE_TTL, ALBUM_CACHE_MAX_SIZE);
+	private final Cache<String, TrackSelectionResult> trackCache = BoundedCacheFactory.create(
+			CACHE_TTL, TRACK_CACHE_MAX_SIZE);
 
 	public DiscographyPlaylistService(
 			SpotifyApiClient spotifyApiClient,
@@ -128,11 +132,11 @@ public class DiscographyPlaylistService {
 			throw new ExternalApiException("artistName is required");
 		}
 		SpotifyArtist artist = new SpotifyArtist(artistId, artistName.trim(), null, null, null);
-		CachedAlbumSearch cached = albumCache.get(artist.id());
-		if (cached != null && cached.isValid()) {
+		AlbumSearchResult cached = albumCache.getIfPresent(artist.id());
+		if (cached != null) {
 			log.info("Using cached Spotify discography. artist={}, artistId={}, albums={}",
-					artist.name(), artist.id(), cached.result().albums().size());
-			return cached.result();
+					artist.name(), artist.id(), cached.albums().size());
+			return cached;
 		}
 
 		List<SimplifiedAlbum> rawAlbums = loadArtistAlbums(accessToken, artist.id());
@@ -146,7 +150,7 @@ public class DiscographyPlaylistService {
 				artist.external_urls() != null ? artist.external_urls().get("spotify") : null,
 				albums,
 				rawAlbums.size() - albums.size());
-		albumCache.put(artist.id(), new CachedAlbumSearch(result, Instant.now()));
+		albumCache.put(artist.id(), result);
 		log.info("Spotify discography ready. artist={}, artistId={}, rawAlbums={}, eligibleAlbums={}, filteredAlbums={}",
 				artist.name(), artist.id(), rawAlbums.size(), albums.size(), result.filteredAlbumCount());
 		return result;
@@ -165,11 +169,11 @@ public class DiscographyPlaylistService {
 				artistName,
 				includedAlbumIds);
 		String cacheKey = selectionCacheKey(artistId, albums, trackLimit);
-		CachedTrackSelection cached = trackCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
+		TrackSelectionResult cached = trackCache.getIfPresent(cacheKey);
+		if (cached != null) {
 			log.info("Using cached discography track selection. artist={}, albums={}, tracksPerAlbum={}, tracks={}",
-					artistName, albums.size(), trackLimit, cached.result().tracks().size());
-			return cached.result();
+					artistName, albums.size(), trackLimit, cached.tracks().size());
+			return cached;
 		}
 
 		Map<String, Long> lastFmPlaycounts = loadLastFmPlaycounts(artistName);
@@ -221,7 +225,7 @@ public class DiscographyPlaylistService {
 				List.copyOf(albumSelections),
 				List.copyOf(selectedTracks),
 				trackLimit);
-		trackCache.put(cacheKey, new CachedTrackSelection(result, Instant.now()));
+		trackCache.put(cacheKey, result);
 		log.info("Discography track selection ready. artist={}, albums={}, tracksPerAlbum={}, tracks={}",
 				artistName, albums.size(), trackLimit, selectedTracks.size());
 		return result;
@@ -464,9 +468,9 @@ public class DiscographyPlaylistService {
 		if (includedAlbumIds == null || includedAlbumIds.isEmpty()) {
 			throw new ExternalApiException("Select at least one album");
 		}
-		CachedAlbumSearch cached = albumCache.get(artistId);
-		AlbumSearchResult search = cached != null && cached.isValid()
-				? cached.result()
+		AlbumSearchResult cached = albumCache.getIfPresent(artistId);
+		AlbumSearchResult search = cached != null
+				? cached
 				: findAlbums(accessToken, artistId, artistName);
 		Set<String> included = new LinkedHashSet<>(includedAlbumIds);
 		List<DiscographyAlbum> albums = search.albums().stream()
@@ -553,18 +557,6 @@ public class DiscographyPlaylistService {
 	}
 
 	private record RankedTrack(SimplifiedTrack track, long lastFmPlaycount) {
-	}
-
-	private record CachedAlbumSearch(AlbumSearchResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedTrackSelection(TrackSelectionResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
 	}
 
 	public record AlbumSearchResult(

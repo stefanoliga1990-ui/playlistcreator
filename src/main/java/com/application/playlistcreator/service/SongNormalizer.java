@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 public class SongNormalizer {
 
 	private static final Pattern BRACKETED_TEXT = Pattern.compile("\\(([^)]*)\\)|\\[([^]]*)]");
+	private static final Pattern FEATURED_ARTIST_SUFFIX = Pattern.compile(
+			"(?iu)\\s*[\\[(]\\s*(?:feat(?:uring)?|ft)\\.?\\s+[^\\])]+[\\])]\\s*$");
 	private static final Set<String> DESCRIPTIVE_WORDS = Set.of(
 			"live", "acoustic", "remix", "remastered", "remaster", "version", "edit", "reprise",
 			"intro", "outro", "snippet", "medley", "mono", "stereo");
@@ -22,6 +24,13 @@ public class SongNormalizer {
 		}
 		String withoutDecorations = removeDescriptiveBracketedText(value);
 		return normalizePlainText(withoutDecorations);
+	}
+
+	public String normalizeTitleWithoutFeaturedArtist(String value) {
+		if (value == null) {
+			return "";
+		}
+		return normalizeTitle(FEATURED_ARTIST_SUFFIX.matcher(value).replaceFirst(""));
 	}
 
 	public String normalizeArtist(String value) {

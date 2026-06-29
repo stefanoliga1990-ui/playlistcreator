@@ -1,5 +1,7 @@
 package com.application.playlistcreator.config;
 
+import java.time.Duration;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "playlistcreator")
@@ -7,7 +9,8 @@ public record PlaylistCreatorProperties(
 		SetlistFm setlistfm,
 		Spotify spotify,
 		LastFm lastfm,
-		GenrePlaylist genrePlaylist) {
+		GenrePlaylist genrePlaylist,
+		HttpClient httpClient) {
 
 	public record SetlistFm(
 			String baseUrl,
@@ -40,5 +43,17 @@ public record PlaylistCreatorProperties(
 			int defaultTracksPerArtist,
 			int maxArtistLimit,
 			int maxTracksPerArtist) {
+	}
+
+	public record HttpClient(
+			Duration connectTimeout,
+			Duration readTimeout,
+			int maxReadAttempts,
+			Duration defaultRetryDelay,
+			Duration maxRetryAfter,
+			float circuitFailureRateThreshold,
+			int circuitMinimumCalls,
+			int circuitWindowSize,
+			Duration circuitOpenDuration) {
 	}
 }

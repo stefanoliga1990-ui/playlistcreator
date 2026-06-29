@@ -38,6 +38,7 @@ build/
 !.env.example
 application-local.properties
 application-local.yml
+!src/main/resources/application-local.properties
 settings.xml
 
 ### Local Codex tooling ###

@@ -3,6 +3,7 @@ package com.application.playlistcreator.controller;
 import com.application.playlistcreator.dto.GeneratePlaylistRequest;
 import com.application.playlistcreator.dto.GeneratePlaylistResponse;
 import com.application.playlistcreator.dto.PreviewSetlistResponse;
+import com.application.playlistcreator.dto.PreviewSetlistArtistsResponse;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.model.SpotifyUserToken;
 import com.application.playlistcreator.service.PlaylistGenerationService;
@@ -37,14 +38,30 @@ public class PlaylistController {
 	}
 
 	@GetMapping("/preview")
-	public PreviewSetlistResponse preview(@RequestParam String artistName) {
+	public PreviewSetlistResponse preview(
+			@RequestParam String artistName,
+			@RequestParam(required = false) String artistMbid) {
 		if (artistName == null || artistName.isBlank()) {
 			throw new ExternalApiException("artistName is required");
 		}
-		log.info("Preview requested. artistName={}", artistName);
-		PreviewSetlistResponse response = PreviewSetlistResponse.from(setlistService.selectProbableSongs(artistName));
+		log.info("Preview requested. artistName={}, artistMbid={}", artistName, artistMbid);
+		PreviewSetlistResponse response = PreviewSetlistResponse.from(
+				setlistService.selectProbableSongs(artistMbid, artistName));
 		log.info("Preview completed. artistName={}, resolvedArtist={}, setlists={}, recentSongs={}",
 				artistName, response.artist().name(), response.sourceSetlists().size(), response.recentSongsCount());
+		return response;
+	}
+
+	@GetMapping("/artists")
+	public PreviewSetlistArtistsResponse artists(@RequestParam String artistName) {
+		if (artistName == null || artistName.isBlank()) {
+			throw new ExternalApiException("artistName is required");
+		}
+		log.info("Setlist artist search requested. artistName={}", artistName);
+		PreviewSetlistArtistsResponse response = PreviewSetlistArtistsResponse.from(
+				setlistService.findArtists(artistName));
+		log.info("Setlist artist search completed. artistName={}, matchingArtists={}",
+				artistName, response.artistCount());
 		return response;
 	}
 
@@ -58,6 +75,7 @@ public class PlaylistController {
 		SpotifyUserToken token = spotifyOAuthService.getValidToken(session);
 		GeneratePlaylistResponse response = playlistGenerationService.generatePlaylist(
 				token.accessToken(),
+				request.artistMbid(),
 				request.artistName(),
 				request.playlistName(),
 				request.playlistDescription(),

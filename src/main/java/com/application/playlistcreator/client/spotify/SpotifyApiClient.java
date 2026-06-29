@@ -1,15 +1,13 @@
 package com.application.playlistcreator.client.spotify;
 
-import java.net.SocketTimeoutException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.application.playlistcreator.config.PlaylistCreatorProperties;
 import com.application.playlistcreator.exception.ExternalApiException;
-import com.application.playlistcreator.exception.ExternalApiUnavailableException;
+import com.application.playlistcreator.service.ExternalApiResilienceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -17,20 +15,21 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.ResourceAccessException;
+
+import static com.application.playlistcreator.service.ExternalApiResilienceService.Provider.SPOTIFY_API;
 
 @Component
 public class SpotifyApiClient {
 
 	private static final Logger log = LoggerFactory.getLogger(SpotifyApiClient.class);
-	private static final int READ_MAX_ATTEMPTS = 2;
-	private static final long READ_RETRY_DELAY_MILLIS = 500;
-
 	private final RestClient restClient;
 	private final PlaylistCreatorProperties.Spotify properties;
+	private final ExternalApiResilienceService resilienceService;
 
-	public SpotifyApiClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties) {
+	public SpotifyApiClient(RestClient.Builder restClientBuilder, PlaylistCreatorProperties properties,
+			ExternalApiResilienceService resilienceService) {
 		this.properties = properties.spotify();
+		this.resilienceService = resilienceService;
 		this.restClient = restClientBuilder
 				.baseUrl(properties.spotify().apiBaseUrl())
 				.build();
@@ -185,7 +184,7 @@ public class SpotifyApiClient {
 		try {
 			log.info("Calling Spotify create playlist endpoint. name={}, publicPlaylist={}",
 					name, publicPlaylist);
-			return restClient.post()
+			return resilienceService.executeWrite(SPOTIFY_API, "Spotify playlist creation", () -> restClient.post()
 					.uri("/me/playlists")
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
@@ -194,7 +193,7 @@ public class SpotifyApiClient {
 							"description", description,
 							"public", publicPlaylist))
 					.retrieve()
-					.body(Playlist.class);
+					.body(Playlist.class));
 		}
 		catch (RestClientResponseException ex) {
 			throw new ExternalApiException(toFailureMessage("Spotify playlist creation", ex), ex);
@@ -205,13 +204,16 @@ public class SpotifyApiClient {
 		try {
 			log.info("Calling Spotify change playlist details endpoint. playlistId={}, publicPlaylist={}",
 					playlistId, publicPlaylist);
-			restClient.put()
+			resilienceService.executeWrite(SPOTIFY_API, "Spotify playlist visibility update", () -> {
+				restClient.put()
 					.uri("/playlists/{playlistId}", playlistId)
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
 					.body(Map.of("public", publicPlaylist))
 					.retrieve()
 					.toBodilessEntity();
+				return null;
+			});
 		}
 		catch (RestClientResponseException ex) {
 			throw new ExternalApiException(toFailureMessage("Spotify playlist visibility update", ex), ex);
@@ -221,13 +223,16 @@ public class SpotifyApiClient {
 	public void addItemsToPlaylist(String accessToken, String playlistId, List<String> uris) {
 		try {
 			log.info("Calling Spotify add playlist items endpoint. playlistId={}, items={}", playlistId, uris.size());
-			restClient.post()
+			resilienceService.executeWrite(SPOTIFY_API, "Spotify add playlist items", () -> {
+				restClient.post()
 					.uri("/playlists/{playlistId}/items", playlistId)
 					.header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
 					.contentType(MediaType.APPLICATION_JSON)
 					.body(Map.of("uris", uris))
 					.retrieve()
 					.toBodilessEntity();
+				return null;
+			});
 		}
 		catch (RestClientResponseException ex) {
 			throw new ExternalApiException(toFailureMessage("Spotify add playlist items", ex), ex);
@@ -239,78 +244,12 @@ public class SpotifyApiClient {
 	}
 
 	private <T> T executeRead(String operation, Supplier<T> request) {
-		for (int attempt = 1; attempt <= READ_MAX_ATTEMPTS; attempt++) {
-			try {
-				return request.get();
-			}
-			catch (RestClientResponseException ex) {
-				throw new ExternalApiException(toFailureMessage(operation, ex), ex);
-			}
-			catch (ResourceAccessException ex) {
-				if (isTimeout(ex)) {
-					log.warn("{} timed out. No retry will be attempted.", operation, ex);
-					throw new ExternalApiUnavailableException(
-							"Spotify is taking too long to respond. Please try again in a few seconds.",
-							ex);
-				}
-				if (!isRetryableConnectionFailure(ex) || attempt == READ_MAX_ATTEMPTS) {
-					log.warn("{} failed because Spotify is temporarily unreachable. attempt={}/{}",
-							operation, attempt, READ_MAX_ATTEMPTS, ex);
-					throw new ExternalApiUnavailableException(
-							"Spotify is temporarily unavailable. Please try again in a few seconds.",
-							ex);
-				}
-				log.warn("{} interrupted by a transient connection error. Retrying once in {} ms. attempt={}/{}",
-						operation, READ_RETRY_DELAY_MILLIS, attempt, READ_MAX_ATTEMPTS, ex);
-				waitBeforeRetry(operation, ex);
-			}
-		}
-		throw new IllegalStateException("Unreachable Spotify retry state");
-	}
-
-	private void waitBeforeRetry(String operation, ResourceAccessException cause) {
 		try {
-			Thread.sleep(READ_RETRY_DELAY_MILLIS);
+			return resilienceService.executeRead(SPOTIFY_API, operation, request);
 		}
-		catch (InterruptedException ex) {
-			Thread.currentThread().interrupt();
-			throw new ExternalApiUnavailableException(
-					"Spotify is temporarily unavailable. Please try again in a few seconds.",
-					cause);
+		catch (RestClientResponseException ex) {
+			throw new ExternalApiException(toFailureMessage(operation, ex), ex);
 		}
-	}
-
-	static boolean isRetryableConnectionFailure(Throwable throwable) {
-		for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-			if (cause instanceof SocketTimeoutException) {
-				return false;
-			}
-			String message = cause.getMessage();
-			if (message == null) {
-				continue;
-			}
-			String normalized = message.toLowerCase(Locale.ROOT);
-			if (normalized.contains("connection reset")
-					|| normalized.contains("connection aborted")
-					|| normalized.contains("premature end")
-					|| normalized.contains("unexpected end of file")) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	static boolean isTimeout(Throwable throwable) {
-		for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-			if (cause instanceof SocketTimeoutException) {
-				return true;
-			}
-			String message = cause.getMessage();
-			if (message != null && message.toLowerCase(Locale.ROOT).contains("timed out")) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private String toFailureMessage(String operation, RestClientResponseException ex) {

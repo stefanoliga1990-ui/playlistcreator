@@ -1,7 +1,6 @@
 package com.application.playlistcreator.service;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -9,19 +8,20 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.application.playlistcreator.client.lastfm.LastFmClient;
 import com.application.playlistcreator.client.lastfm.LastFmClient.SimilarArtist;
 import com.application.playlistcreator.client.lastfm.LastFmClient.Track;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient;
 import com.application.playlistcreator.client.spotify.SpotifyApiClient.SpotifyArtist;
+import com.application.playlistcreator.config.BoundedCacheFactory;
 import com.application.playlistcreator.dto.SelectedArtistRequest;
 import com.application.playlistcreator.dto.SelectedTrackRequest;
 import com.application.playlistcreator.exception.ExternalApiException;
 import com.application.playlistcreator.model.GenreTrackCandidate;
 import com.application.playlistcreator.model.GenreTrackMatch;
 import com.application.playlistcreator.model.SpotifyTrackMatch.MatchStatus;
+import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,6 +31,8 @@ public class DiscoverNewMusicService {
 
 	private static final Logger log = LoggerFactory.getLogger(DiscoverNewMusicService.class);
 	private static final Duration CACHE_TTL = Duration.ofMinutes(30);
+	private static final long USER_CACHE_MAX_SIZE = 100;
+	private static final long RESULT_CACHE_MAX_SIZE = 500;
 	private static final int TOP_ARTIST_LIMIT = 10;
 	private static final int PROFILE_LIMIT = 50;
 	private static final int SIMILAR_ARTISTS_PER_SOURCE = 4;
@@ -46,10 +48,14 @@ public class DiscoverNewMusicService {
 	private final LastFmClient lastFmClient;
 	private final SpotifyTrackMatchingService spotifyTrackMatchingService;
 	private final SongNormalizer songNormalizer;
-	private final Map<String, CachedTopArtists> topArtistsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedKnownMusicProfile> knownMusicProfileCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedSimilarArtists> similarArtistsCache = new ConcurrentHashMap<>();
-	private final Map<String, CachedTracks> tracksCache = new ConcurrentHashMap<>();
+	private final Cache<String, TopArtistsResult> topArtistsCache = BoundedCacheFactory.create(
+			CACHE_TTL, USER_CACHE_MAX_SIZE);
+	private final Cache<String, KnownMusicProfile> knownMusicProfileCache = BoundedCacheFactory.create(
+			CACHE_TTL, USER_CACHE_MAX_SIZE);
+	private final Cache<String, SimilarArtistsResult> similarArtistsCache = BoundedCacheFactory.create(
+			CACHE_TTL, RESULT_CACHE_MAX_SIZE);
+	private final Cache<String, TracksResult> tracksCache = BoundedCacheFactory.create(
+			CACHE_TTL, RESULT_CACHE_MAX_SIZE);
 
 	public DiscoverNewMusicService(
 			SpotifyApiClient spotifyApiClient,
@@ -64,9 +70,9 @@ public class DiscoverNewMusicService {
 
 	public TopArtistsResult findTopArtists(String accessToken) {
 		String userId = currentUserId(accessToken);
-		CachedTopArtists cached = topArtistsCache.get(userId);
-		if (cached != null && cached.isValid()) {
-			return cached.result();
+		TopArtistsResult cached = topArtistsCache.getIfPresent(userId);
+		if (cached != null) {
+			return cached;
 		}
 		var page = spotifyApiClient.getCurrentUserTopArtists(
 				accessToken, "medium_term", TOP_ARTIST_LIMIT, 0);
@@ -91,7 +97,7 @@ public class DiscoverNewMusicService {
 						+ " of the " + TOP_ARTIST_LIMIT + " requested artists."
 				: null;
 		TopArtistsResult result = new TopArtistsResult(List.copyOf(artists), warning);
-		topArtistsCache.put(userId, new CachedTopArtists(result, Instant.now()));
+		topArtistsCache.put(userId, result);
 		log.info("Discovery top artists ready. userId={}, artists={}, warning={}",
 				userId, artists.size(), warning != null);
 		return result;
@@ -102,9 +108,9 @@ public class DiscoverNewMusicService {
 			List<SelectedArtistRequest> selectedArtists) {
 		List<TopArtist> sources = validateSelectedTopArtists(accessToken, selectedArtists);
 		String cacheKey = artistSelectionKey(sources);
-		CachedSimilarArtists cached = similarArtistsCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
-			return cached.result();
+		SimilarArtistsResult cached = similarArtistsCache.getIfPresent(cacheKey);
+		if (cached != null) {
+			return cached;
 		}
 
 		Set<String> sourceIds = sources.stream().map(TopArtist::id)
@@ -156,7 +162,7 @@ public class DiscoverNewMusicService {
 				List.copyOf(sources),
 				artists,
 				warning);
-		similarArtistsCache.put(cacheKey, new CachedSimilarArtists(result, Instant.now()));
+		similarArtistsCache.put(cacheKey, result);
 		log.info("Discovery similar artists ready. sources={}, artists={}, unresolvedArtists={}, warning={}",
 				sources.size(), artists.size(), unresolvedArtists.size(), warning != null);
 		return result;
@@ -173,9 +179,9 @@ public class DiscoverNewMusicService {
 		String cacheKey = userId + ":"
 				+ artistSelectionKey(similarResult.sourceArtists()) + ":"
 				+ artistSelectionKey(selectedArtists);
-		CachedTracks cached = tracksCache.get(cacheKey);
-		if (cached != null && cached.isValid()) {
-			return cached.result();
+		TracksResult cached = tracksCache.getIfPresent(cacheKey);
+		if (cached != null) {
+			return cached;
 		}
 
 		KnownMusicProfile knownMusic = loadKnownMusicProfile(accessToken, userId);
@@ -255,7 +261,7 @@ public class DiscoverNewMusicService {
 				List.copyOf(selectedArtists),
 				List.copyOf(tracks),
 				warning);
-		tracksCache.put(cacheKey, new CachedTracks(result, Instant.now()));
+		tracksCache.put(cacheKey, result);
 		log.info("Discovery tracks ready. userId={}, artists={}, tracks={}, warning={}",
 				userId, selectedArtists.size(), tracks.size(), warning != null);
 		return result;
@@ -366,9 +372,9 @@ public class DiscoverNewMusicService {
 	}
 
 	private KnownMusicProfile loadKnownMusicProfile(String accessToken, String userId) {
-		CachedKnownMusicProfile cached = knownMusicProfileCache.get(userId);
-		if (cached != null && cached.isValid()) {
-			return cached.profile();
+		KnownMusicProfile cached = knownMusicProfileCache.getIfPresent(userId);
+		if (cached != null) {
+			return cached;
 		}
 		Set<String> artistIds = new LinkedHashSet<>();
 		Set<String> trackIds = new LinkedHashSet<>();
@@ -415,8 +421,7 @@ public class DiscoverNewMusicService {
 		}
 		KnownMusicProfile profile = new KnownMusicProfile(
 				Set.copyOf(artistIds), Set.copyOf(trackIds));
-		knownMusicProfileCache.put(
-				userId, new CachedKnownMusicProfile(profile, Instant.now()));
+		knownMusicProfileCache.put(userId, profile);
 		log.info("Known Spotify music profile ready. userId={}, artists={}, tracks={}",
 				userId, artistIds.size(), trackIds.size());
 		return profile;
@@ -561,27 +566,4 @@ public class DiscoverNewMusicService {
 		}
 	}
 
-	private record CachedTopArtists(TopArtistsResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedKnownMusicProfile(KnownMusicProfile profile, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedSimilarArtists(SimilarArtistsResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
-
-	private record CachedTracks(TracksResult result, Instant createdAt) {
-		boolean isValid() {
-			return createdAt.plus(CACHE_TTL).isAfter(Instant.now());
-		}
-	}
 }

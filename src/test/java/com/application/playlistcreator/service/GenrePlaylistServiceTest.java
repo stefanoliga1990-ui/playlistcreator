@@ -134,6 +134,7 @@ class GenrePlaylistServiceTest {
 				null,
 				null,
 				null,
-				new PlaylistCreatorProperties.GenrePlaylist(15, 3, 25, 10));
+				new PlaylistCreatorProperties.GenrePlaylist(15, 3, 25, 10),
+				null);
 	}
 }
