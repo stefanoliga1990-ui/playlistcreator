@@ -164,9 +164,11 @@ textarea {
 
 .site-footer-inner {
 	display: flex;
+	flex-direction: column;
 	min-height: 72px;
 	align-items: center;
 	justify-content: center;
+	gap: 4px;
 	padding: 18px 0;
 	color: var(--muted);
 	font-size: 13px;
@@ -352,6 +354,14 @@ h3 {
 
 .section-heading {
 	margin-bottom: 18px;
+}
+
+.section-description {
+	max-width: 760px;
+	margin-top: 8px;
+	color: var(--muted);
+	font-size: 15px;
+	line-height: 1.5;
 }
 
 .search-form {
